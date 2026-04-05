@@ -5,7 +5,7 @@ import { calculateScoreForGame, type GameScoreMode } from '@/lib/scoring';
 const EVENTS: Record<string, { game_id: string; event_time_ms: number; label: string; game_mode: GameScoreMode }> = {
   '00000000-0000-0000-0000-000000000002': {
     game_id: '00000000-0000-0000-0000-000000000001',
-    event_time_ms: 3000,
+    event_time_ms: 3533,
     label: 'Goal',
     game_mode: 'football',
   },

@@ -45,7 +45,7 @@ const GAMES: Record<
     title: "Футбол",
     videoSrc: "/demo.mp4",
     promptTitle: "Угадайте момент наступления гола",
-    events: [{ id: "00000000-0000-0000-0000-000000000002", eventTimeMs: 3000 }],
+    events: [{ id: "00000000-0000-0000-0000-000000000002", eventTimeMs: 3533 }],
   },
   cs2: {
     title: "CS2",
