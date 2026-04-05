@@ -412,6 +412,10 @@ export default function GamePage() {
     resetRound();
   };
 
+  const handleVideoEnded = () => {
+    moveToEventIndex(selectedGame.events.length);
+  };
+
   const canCancelPending =
     !!pendingGuess && !!currentEvent && pendingGuess.eventId === currentEvent.id && currentVideoMs < currentEvent.eventTimeMs && cancelAttemptsLeft > 0;
 
@@ -492,6 +496,7 @@ export default function GamePage() {
                   ref={videoRef}
                   className="w-full aspect-video bg-black rounded"
                   controls
+                  onEnded={handleVideoEnded}
                   onError={() => setVideoError(true)}
                 >
                   <source src={selectedGame.videoSrc} type="video/mp4" />
