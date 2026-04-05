@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Event Timing Game
+
+A web-based MVP game where players watch a video and click a button to predict when an event occurs. The system calculates accuracy and maintains a leaderboard.
+
+## Features
+
+- Video playback with HTML5 player
+- Real-time event timing capture
+- Scoring system based on accuracy (±300ms = 100 points)
+- Persistent leaderboard with Supabase
+- Duplicate submission prevention
+- Responsive design
+
+## Tech Stack
+
+- **Frontend**: Next.js 16 (App Router), TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: Supabase (PostgreSQL)
+- **Deployment**: Vercel-ready
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ or compatible runtime
+- pnpm (or npm/yarn)
+- Supabase account
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Set up Supabase:
+   - Follow instructions in `SUPABASE_SETUP.md`
+   - Create `.env.local` with your Supabase credentials
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+4. Add demo video:
+   - Place `demo.mp4` in `/public` directory
+   - The demo event is set at 14500ms (14.5 seconds)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+5. Run development server:
 
-## Learn More
+```bash
+pnpm dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+6. Open [http://localhost:3000](http://localhost:3000)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Game Rules
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Players guess when an event occurs in the video. Scoring:
 
-## Deploy on Vercel
+- ≤ 300ms difference: **100 points**
+- ≤ 1000ms difference: **70 points**
+- ≤ 2000ms difference: **40 points**
+- ≤ 5000ms difference: **10 points**
+- \> 5000ms difference: **0 points**
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Each player can submit once per event.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+/app
+  /api
+    /submissions      # POST endpoint for submissions
+    /leaderboard      # GET endpoint for leaderboard
+    /check-submission # GET endpoint to check existing submission
+  /game               # Game page
+  layout.tsx          # Root layout
+  page.tsx            # Home page
+/lib
+  supabase.ts         # Supabase client
+/public
+  demo.mp4            # Demo video (add manually)
+supabase-schema.sql   # Database schema
+```
+
+## Environment Variables
+
+See `.env.example` for required variables:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## Deployment
+
+Deploy to Vercel:
+
+1. Push to GitHub
+2. Import project in Vercel
+3. Add environment variables
+4. Deploy
+
+## MVP Scope
+
+This is an MVP focused on core functionality:
+- Simple, single-game setup
+- No authentication system
+- No admin panel
+- Hardcoded demo game/event IDs
+
+## License
+
+MIT
