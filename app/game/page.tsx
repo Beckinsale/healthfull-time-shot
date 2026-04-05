@@ -46,16 +46,30 @@ export default function GamePage() {
     }
   };
 
+  const checkExistingSubmission = async (name: string) => {
+    try {
+      const response = await fetch(`/api/check-submission?player_name=${encodeURIComponent(name)}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.has_submitted && data.submission) {
+          setGuessedTimeMs(data.submission.guessed_time_ms);
+          setDeltaMs(data.submission.delta_ms);
+          setScore(data.submission.score);
+          setHasGuessed(true);
+          localStorage.setItem('hasSubmitted', 'true');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check submission:', error);
+    }
+  };
+
   useEffect(() => {
     const savedName = localStorage.getItem("playerName");
     if (savedName) {
       setPlayerName(savedName);
       setIsNameSet(true);
-    }
-
-    const hasSubmitted = localStorage.getItem('hasSubmitted');
-    if (hasSubmitted === 'true') {
-      setHasGuessed(true);
+      checkExistingSubmission(savedName);
     }
 
     fetchLeaderboard();
@@ -143,12 +157,30 @@ export default function GamePage() {
     );
   }
 
+  const handleChangeName = () => {
+    setIsNameSet(false);
+    setHasGuessed(false);
+    setGuessedTimeMs(null);
+    setDeltaMs(null);
+    setScore(null);
+    setSubmitError(null);
+    localStorage.removeItem('hasSubmitted');
+  };
+
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 p-8">
       <div className="w-full max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-zinc-900 mb-8">
-          Event Timing Game - {playerName}
-        </h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-zinc-900">
+            Event Timing Game - {playerName}
+          </h1>
+          <button
+            onClick={handleChangeName}
+            className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+          >
+            Change Name
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main game area */}
