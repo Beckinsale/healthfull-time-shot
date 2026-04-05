@@ -4,8 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type EventConfig = {
   id: string;
-  label: string;
   eventTimeMs: number;
+};
+
+type SubmissionData = {
+  guessed_time_ms: number;
+  delta_ms: number;
+  score: number;
 };
 
 type GameMode = "football" | "cs2";
@@ -23,16 +28,16 @@ const GAMES: Record<
     title: "Футбол",
     videoSrc: "/demo.mp4",
     buttonLabel: "Угадать гол",
-    events: [{ id: "00000000-0000-0000-0000-000000000002", label: "Гол", eventTimeMs: 3000 }],
+    events: [{ id: "00000000-0000-0000-0000-000000000002", eventTimeMs: 3000 }],
   },
   cs2: {
     title: "CS2",
     videoSrc: "/demo2.mp4",
     buttonLabel: "Угадать headshot",
     events: [
-      { id: "00000000-0000-0000-0000-000000000003", label: "Headshot 1", eventTimeMs: 900 },
-      { id: "00000000-0000-0000-0000-000000000004", label: "Headshot 2", eventTimeMs: 3000 },
-      { id: "00000000-0000-0000-0000-000000000005", label: "Headshot 3", eventTimeMs: 7000 },
+      { id: "00000000-0000-0000-0000-000000000003", eventTimeMs: 900 },
+      { id: "00000000-0000-0000-0000-000000000004", eventTimeMs: 3000 },
+      { id: "00000000-0000-0000-0000-000000000005", eventTimeMs: 7000 },
     ],
   },
 };
@@ -49,11 +54,12 @@ export default function GamePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [mode, setMode] = useState<GameMode>("football");
-  const [selectedEventId, setSelectedEventId] = useState(GAMES.football.events[0].id);
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
 
   const [playerName, setPlayerName] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
   const [hasGuessed, setHasGuessed] = useState(false);
+  const [isWaitingForEvent, setIsWaitingForEvent] = useState(false);
   const [guessedTimeMs, setGuessedTimeMs] = useState<number | null>(null);
   const [deltaMs, setDeltaMs] = useState<number | null>(null);
   const [score, setScore] = useState<number | null>(null);
@@ -64,13 +70,11 @@ export default function GamePage() {
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
 
   const selectedGame = useMemo(() => GAMES[mode], [mode]);
-  const selectedEvent = useMemo(
-    () => selectedGame.events.find((event) => event.id === selectedEventId) ?? selectedGame.events[0],
-    [selectedGame, selectedEventId]
-  );
+  const currentEvent = selectedGame.events[currentEventIndex] ?? null;
 
   const resetRound = () => {
     setHasGuessed(false);
+    setIsWaitingForEvent(false);
     setGuessedTimeMs(null);
     setDeltaMs(null);
     setScore(null);
@@ -92,25 +96,57 @@ export default function GamePage() {
     }
   };
 
-  const checkExistingSubmission = async (name: string, eventId: string) => {
+  const getSubmission = async (name: string, eventId: string): Promise<SubmissionData | null> => {
     try {
       const response = await fetch(
         `/api/check-submission?player_name=${encodeURIComponent(name)}&event_id=${encodeURIComponent(eventId)}`
       );
-      if (response.ok) {
-        const data = await response.json();
-        if (data.has_submitted && data.submission) {
-          setGuessedTimeMs(data.submission.guessed_time_ms);
-          setDeltaMs(data.submission.delta_ms);
-          setScore(data.submission.score);
-          setHasGuessed(true);
-          return;
-        }
-      }
+      if (!response.ok) return null;
 
-      resetRound();
+      const data = await response.json();
+      return data.has_submitted && data.submission ? data.submission : null;
     } catch (error) {
       console.error("Не удалось проверить отправку:", error);
+      return null;
+    }
+  };
+
+  const restoreProgress = async (name: string, gameMode: GameMode) => {
+    const events = GAMES[gameMode].events;
+    let lastSubmission: SubmissionData | null = null;
+
+    for (let i = 0; i < events.length; i += 1) {
+      const submission = await getSubmission(name, events[i].id);
+      if (!submission) {
+        setCurrentEventIndex(i);
+        setHasGuessed(false);
+        setIsWaitingForEvent(false);
+        setSubmitError(null);
+
+        if (lastSubmission) {
+          setGuessedTimeMs(lastSubmission.guessed_time_ms);
+          setDeltaMs(lastSubmission.delta_ms);
+          setScore(lastSubmission.score);
+        } else {
+          setGuessedTimeMs(null);
+          setDeltaMs(null);
+          setScore(null);
+        }
+        return;
+      }
+
+      lastSubmission = submission;
+    }
+
+    setCurrentEventIndex(events.length);
+    setHasGuessed(false);
+    setIsWaitingForEvent(false);
+    setSubmitError(null);
+
+    if (lastSubmission) {
+      setGuessedTimeMs(lastSubmission.guessed_time_ms);
+      setDeltaMs(lastSubmission.delta_ms);
+      setScore(lastSubmission.score);
     }
   };
 
@@ -123,29 +159,54 @@ export default function GamePage() {
   }, []);
 
   useEffect(() => {
-    fetchLeaderboard(selectedEvent.id);
     if (isNameSet && playerName) {
-      checkExistingSubmission(playerName, selectedEvent.id);
+      restoreProgress(playerName, mode);
     }
     setVideoError(false);
-  }, [selectedEvent.id, isNameSet, playerName]);
+  }, [isNameSet, playerName, mode]);
+
+  useEffect(() => {
+    if (currentEvent) {
+      fetchLeaderboard(currentEvent.id);
+    } else {
+      setLeaderboard([]);
+      setIsLoadingLeaderboard(false);
+    }
+  }, [currentEvent?.id]);
+
+  useEffect(() => {
+    if (!isWaitingForEvent || !currentEvent || !videoRef.current) return;
+
+    const timer = window.setInterval(() => {
+      if (!videoRef.current) return;
+      const nowMs = Math.round(videoRef.current.currentTime * 1000);
+      if (nowMs >= currentEvent.eventTimeMs) {
+        setIsWaitingForEvent(false);
+        setHasGuessed(false);
+        setCurrentEventIndex((prev) => prev + 1);
+      }
+    }, 150);
+
+    return () => window.clearInterval(timer);
+  }, [isWaitingForEvent, currentEvent]);
 
   const handleNameSubmit = () => {
     if (playerName.trim()) {
+      const normalizedName = playerName.trim();
       setIsNameSet(true);
-      localStorage.setItem("playerName", playerName.trim());
-      setPlayerName(playerName.trim());
+      setPlayerName(normalizedName);
+      localStorage.setItem("playerName", normalizedName);
     }
   };
 
   const handleGuess = async () => {
-    if (!videoRef.current || isSubmitting || hasGuessed) return;
+    if (!videoRef.current || isSubmitting || hasGuessed || !currentEvent) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
 
     const timeMs = Math.round(videoRef.current.currentTime * 1000);
-    const delta = Math.abs(timeMs - selectedEvent.eventTimeMs);
+    const delta = Math.abs(timeMs - currentEvent.eventTimeMs);
     const calculatedScore = calculateScore(delta);
 
     setGuessedTimeMs(timeMs);
@@ -160,7 +221,7 @@ export default function GamePage() {
         body: JSON.stringify({
           player_name: playerName,
           guessed_time_ms: timeMs,
-          event_id: selectedEvent.id,
+          event_id: currentEvent.id,
         }),
       });
 
@@ -168,7 +229,7 @@ export default function GamePage() {
         const data = await response.json();
         setSubmitError(data.error || "Не удалось сохранить результат");
       } else {
-        fetchLeaderboard(selectedEvent.id);
+        fetchLeaderboard(currentEvent.id);
       }
     } catch (error) {
       console.error("Ошибка отправки:", error);
@@ -176,15 +237,20 @@ export default function GamePage() {
     } finally {
       setIsSubmitting(false);
     }
+
+    if (mode === "cs2" && currentEventIndex < selectedGame.events.length - 1) {
+      setIsWaitingForEvent(true);
+    }
   };
 
   const handleModeChange = (nextMode: GameMode) => {
     setMode(nextMode);
-    setSelectedEventId(GAMES[nextMode].events[0].id);
+    setCurrentEventIndex(0);
     resetRound();
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.pause();
+      videoRef.current.load();
     }
   };
 
@@ -252,23 +318,6 @@ export default function GamePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {selectedGame.events.length > 1 && (
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <label className="block text-sm text-zinc-600 mb-2">Выберите событие</label>
-                <select
-                  value={selectedEvent.id}
-                  onChange={(e) => setSelectedEventId(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg"
-                >
-                  {selectedGame.events.map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.label} ({(event.eventTimeMs / 1000).toFixed(2)}s)
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div className="bg-white rounded-lg shadow-lg p-4">
               {videoError ? (
                 <div className="aspect-video bg-zinc-900 rounded flex flex-col items-center justify-center p-8">
@@ -279,6 +328,7 @@ export default function GamePage() {
                 </div>
               ) : (
                 <video
+                  key={selectedGame.videoSrc}
                   ref={videoRef}
                   className="w-full aspect-video bg-black rounded"
                   controls
@@ -293,33 +343,29 @@ export default function GamePage() {
             <div className="flex justify-center">
               <button
                 onClick={handleGuess}
-                disabled={hasGuessed || isSubmitting}
+                disabled={hasGuessed || isSubmitting || currentEvent === null || isWaitingForEvent}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Отправка..." : hasGuessed ? "Уже отправлено" : selectedGame.buttonLabel}
+                {isSubmitting
+                  ? "Отправка..."
+                  : currentEvent === null
+                    ? "Все события пройдены"
+                    : isWaitingForEvent
+                      ? "Ожидание события..."
+                      : selectedGame.buttonLabel}
               </button>
             </div>
 
-            {hasGuessed && guessedTimeMs !== null && deltaMs !== null && score !== null && (
+            {guessedTimeMs !== null && deltaMs !== null && score !== null && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
                 <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-zinc-500">Событие</p>
-                    <p className="text-lg text-zinc-900">{selectedEvent.label}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-zinc-500">Время события</p>
-                    <p className="text-lg text-zinc-900">
-                      {(selectedEvent.eventTimeMs / 1000).toFixed(2)}s ({selectedEvent.eventTimeMs}ms)
-                    </p>
-                  </div>
                   <div>
                     <p className="text-sm text-zinc-500">Ваше время</p>
                     <p className="text-lg text-zinc-900">{(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)</p>
                   </div>
                   <div>
-                    <p className="text-sm text-zinc-500">Разница</p>
+                    <p className="text-sm text-zinc-500">Отклонение</p>
                     <p className="text-lg font-semibold text-zinc-900">{deltaMs}ms</p>
                   </div>
                   <div className="pt-2 border-t border-zinc-200">
@@ -341,7 +387,7 @@ export default function GamePage() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8">
               <h2 className="text-xl font-bold text-zinc-900 mb-1">Таблица лидеров</h2>
-              <p className="text-sm text-zinc-500 mb-4">{selectedGame.title} - {selectedEvent.label}</p>
+              <p className="text-sm text-zinc-500 mb-4">{selectedGame.title}</p>
 
               {isLoadingLeaderboard ? (
                 <div className="text-center py-8 text-zinc-500">Загрузка...</div>
