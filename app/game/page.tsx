@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { calculateScoreForGame, EVENT_GRACE_MS_BY_GAME } from "@/lib/scoring";
 
 type EventConfig = {
   id: string;
@@ -21,9 +22,15 @@ type ResultEntry = {
   score: number;
 };
 
-type GameMode = "football" | "cs2";
+type PendingGuess = {
+  eventId: string;
+  eventIndex: number;
+  guessedTimeMs: number;
+  deltaMs: number;
+  score: number;
+};
 
-const EVENT_GRACE_MS = 900;
+type GameMode = "football" | "cs2";
 
 const GAMES: Record<
   GameMode,
@@ -52,20 +59,31 @@ const GAMES: Record<
   },
 };
 
-function calculateScore(deltaMs: number): number {
-  if (deltaMs <= 300) return 100;
-  if (deltaMs <= 1000) return 70;
-  if (deltaMs <= 2000) return 40;
-  if (deltaMs <= 5000) return 10;
-  return 0;
-}
-
 function getEventDisplayLabel(mode: GameMode, eventNumber: number): string {
   if (mode === "football") {
     return `Событие ${eventNumber} гол`;
   }
 
   return `Событие ${eventNumber} headshot`;
+}
+
+function resolveCurrentEventIndex(
+  timeMs: number,
+  startIndex: number,
+  events: EventConfig[],
+  submittedEventIds: string[],
+  eventGraceMs: number
+): number {
+  let nextIndex = startIndex;
+
+  while (
+    nextIndex < events.length &&
+    (submittedEventIds.includes(events[nextIndex].id) || timeMs > events[nextIndex].eventTimeMs + eventGraceMs)
+  ) {
+    nextIndex += 1;
+  }
+
+  return nextIndex;
 }
 
 export default function GamePage() {
@@ -77,34 +95,32 @@ export default function GamePage() {
   const [playerName, setPlayerName] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
   const [submittedEventIds, setSubmittedEventIds] = useState<string[]>([]);
+
   const [guessedTimeMs, setGuessedTimeMs] = useState<number | null>(null);
   const [deltaMs, setDeltaMs] = useState<number | null>(null);
   const [score, setScore] = useState<number | null>(null);
   const [totalScore, setTotalScore] = useState(0);
   const [resultHistory, setResultHistory] = useState<ResultEntry[]>([]);
+
+  const [pendingGuess, setPendingGuess] = useState<PendingGuess | null>(null);
+  const [cancelAttemptsLeft, setCancelAttemptsLeft] = useState(1);
+  const [currentVideoMs, setCurrentVideoMs] = useState(0);
+
   const [videoError, setVideoError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
   const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; name: string; score: number; delta: number }>>([]);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
 
   const selectedGame = useMemo(() => GAMES[mode], [mode]);
   const currentEvent = selectedGame.events[currentEventIndex] ?? null;
+  const eventGraceMs = EVENT_GRACE_MS_BY_GAME[mode];
 
-  const resolveCurrentEventIndex = (timeMs: number, startIndex: number, existingSubmittedEventIds: string[]) => {
-    let nextIndex = startIndex;
-
-    while (
-      nextIndex < selectedGame.events.length &&
-      (
-        existingSubmittedEventIds.includes(selectedGame.events[nextIndex].id) ||
-        timeMs > selectedGame.events[nextIndex].eventTimeMs + EVENT_GRACE_MS
-      )
-    ) {
-      nextIndex += 1;
-    }
-
-    return nextIndex;
+  const moveToEventIndex = (index: number) => {
+    setCurrentEventIndex(index);
+    setPendingGuess(null);
+    setCancelAttemptsLeft(1);
   };
 
   const resetRound = () => {
@@ -114,7 +130,10 @@ export default function GamePage() {
     setScore(null);
     setTotalScore(0);
     setResultHistory([]);
+    setPendingGuess(null);
+    setCancelAttemptsLeft(1);
     setSubmitError(null);
+    setCurrentVideoMs(0);
   };
 
   const fetchLeaderboard = async (eventId: string) => {
@@ -149,9 +168,8 @@ export default function GamePage() {
 
   const restoreProgress = async (name: string, gameMode: GameMode) => {
     const events = GAMES[gameMode].events;
-    let lastSubmission: SubmissionData | null = null;
-    let accumulatedScore = 0;
     const restoredHistory: ResultEntry[] = [];
+    let accumulatedScore = 0;
 
     for (let i = 0; i < events.length; i += 1) {
       const submission = await getSubmission(name, events[i].id);
@@ -159,13 +177,14 @@ export default function GamePage() {
         setTotalScore(accumulatedScore);
         setResultHistory(restoredHistory);
         setSubmittedEventIds(restoredHistory.map((item) => item.eventId));
-        setCurrentEventIndex(i);
+        moveToEventIndex(i);
         setSubmitError(null);
 
-        if (lastSubmission) {
-          setGuessedTimeMs(lastSubmission.guessed_time_ms);
-          setDeltaMs(lastSubmission.delta_ms);
-          setScore(lastSubmission.score);
+        if (restoredHistory.length > 0) {
+          const last = restoredHistory[restoredHistory.length - 1];
+          setGuessedTimeMs(last.guessedTimeMs);
+          setDeltaMs(last.deltaMs);
+          setScore(last.score);
         } else {
           setGuessedTimeMs(null);
           setDeltaMs(null);
@@ -174,7 +193,6 @@ export default function GamePage() {
         return;
       }
 
-      lastSubmission = submission;
       accumulatedScore += submission.score;
       restoredHistory.push({
         eventId: events[i].id,
@@ -188,13 +206,64 @@ export default function GamePage() {
     setTotalScore(accumulatedScore);
     setResultHistory(restoredHistory);
     setSubmittedEventIds(restoredHistory.map((item) => item.eventId));
-    setCurrentEventIndex(events.length);
+    moveToEventIndex(events.length);
     setSubmitError(null);
 
-    if (lastSubmission) {
-      setGuessedTimeMs(lastSubmission.guessed_time_ms);
-      setDeltaMs(lastSubmission.delta_ms);
-      setScore(lastSubmission.score);
+    if (restoredHistory.length > 0) {
+      const last = restoredHistory[restoredHistory.length - 1];
+      setGuessedTimeMs(last.guessedTimeMs);
+      setDeltaMs(last.deltaMs);
+      setScore(last.score);
+    }
+  };
+
+  const submitGuess = async (guess: PendingGuess) => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await fetch("/api/submissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player_name: playerName,
+          guessed_time_ms: guess.guessedTimeMs,
+          event_id: guess.eventId,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status === 409) {
+          setSubmittedEventIds((prev) => (prev.includes(guess.eventId) ? prev : [...prev, guess.eventId]));
+          moveToEventIndex(guess.eventIndex + 1);
+        } else {
+          setSubmitError(data.error || "Не удалось сохранить результат");
+        }
+      } else {
+        setSubmittedEventIds((prev) => (prev.includes(guess.eventId) ? prev : [...prev, guess.eventId]));
+        setTotalScore((prev) => prev + guess.score);
+        setResultHistory((prev) => {
+          const next = prev.filter((item) => item.eventId !== guess.eventId);
+          next.push({
+            eventId: guess.eventId,
+            eventNumber: guess.eventIndex + 1,
+            guessedTimeMs: guess.guessedTimeMs,
+            deltaMs: guess.deltaMs,
+            score: guess.score,
+          });
+          return next.sort((a, b) => a.eventNumber - b.eventNumber);
+        });
+        moveToEventIndex(guess.eventIndex + 1);
+        fetchLeaderboard(guess.eventId);
+      }
+    } catch (error) {
+      console.error("Ошибка отправки:", error);
+      setSubmitError("Ошибка сети. Очки рассчитаны, но результат не сохранен.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -223,21 +292,33 @@ export default function GamePage() {
   }, [currentEvent?.id]);
 
   useEffect(() => {
-    if (!videoRef.current || currentEvent === null) return;
+    if (!videoRef.current) return;
 
     const timer = window.setInterval(() => {
       if (!videoRef.current) return;
 
       const nowMs = Math.round(videoRef.current.currentTime * 1000);
-      const nextIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, submittedEventIds);
+      setCurrentVideoMs(nowMs);
 
+      if (!currentEvent) return;
+      if (pendingGuess && pendingGuess.eventId === currentEvent.id) return;
+
+      const nextIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, selectedGame.events, submittedEventIds, eventGraceMs);
       if (nextIndex !== currentEventIndex) {
-        setCurrentEventIndex(nextIndex);
+        moveToEventIndex(nextIndex);
       }
-    }, 150);
+    }, 120);
 
     return () => window.clearInterval(timer);
-  }, [currentEvent, currentEventIndex, selectedGame.events.length, submittedEventIds]);
+  }, [currentEvent, currentEventIndex, pendingGuess, selectedGame.events, submittedEventIds]);
+
+  useEffect(() => {
+    if (!pendingGuess || !currentEvent || isSubmitting) return;
+    if (pendingGuess.eventId !== currentEvent.id) return;
+    if (currentVideoMs < currentEvent.eventTimeMs) return;
+
+    submitGuess(pendingGuess);
+  }, [pendingGuess, currentEvent, currentVideoMs, isSubmitting]);
 
   const handleNameSubmit = () => {
     if (playerName.trim()) {
@@ -252,72 +333,55 @@ export default function GamePage() {
     if (!videoRef.current || isSubmitting || !currentEvent) return;
 
     const nowMs = Math.round(videoRef.current.currentTime * 1000);
-    const resolvedIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, submittedEventIds);
+    const resolvedIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, selectedGame.events, submittedEventIds, eventGraceMs);
 
     if (resolvedIndex !== currentEventIndex) {
-      setCurrentEventIndex(resolvedIndex);
+      moveToEventIndex(resolvedIndex);
     }
 
     const targetEvent = selectedGame.events[resolvedIndex] ?? null;
     if (!targetEvent) return;
 
     if (submittedEventIds.includes(targetEvent.id)) {
-      setCurrentEventIndex(resolvedIndex + 1);
+      moveToEventIndex(resolvedIndex + 1);
       return;
     }
 
-    setIsSubmitting(true);
-    setSubmitError(null);
+    const signedDiff = nowMs - targetEvent.eventTimeMs;
+    const delta = Math.abs(signedDiff);
+    const calculatedScore = calculateScoreForGame(mode, signedDiff);
 
-    const timeMs = nowMs;
-    const delta = Math.abs(timeMs - targetEvent.eventTimeMs);
-    const calculatedScore = calculateScore(delta);
-
-    setGuessedTimeMs(timeMs);
+    setGuessedTimeMs(nowMs);
     setDeltaMs(delta);
     setScore(calculatedScore);
-    try {
-      const response = await fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          player_name: playerName,
-          guessed_time_ms: timeMs,
-          event_id: targetEvent.id,
-        }),
-      });
 
-      if (!response.ok) {
-        const data = await response.json();
-        if (response.status === 409) {
-          setSubmittedEventIds((prev) => (prev.includes(targetEvent.id) ? prev : [...prev, targetEvent.id]));
-          setCurrentEventIndex(resolvedIndex + 1);
-        } else {
-          setSubmitError(data.error || "Не удалось сохранить результат");
-        }
-      } else {
-        setSubmittedEventIds((prev) => (prev.includes(targetEvent.id) ? prev : [...prev, targetEvent.id]));
-        setTotalScore((prev) => prev + calculatedScore);
-        setResultHistory((prev) => {
-          const next = prev.filter((item) => item.eventId !== targetEvent.id);
-          next.push({
-            eventId: targetEvent.id,
-            eventNumber: resolvedIndex + 1,
-            guessedTimeMs: timeMs,
-            deltaMs: delta,
-            score: calculatedScore,
-          });
-          return next.sort((a, b) => a.eventNumber - b.eventNumber);
-        });
-        setCurrentEventIndex(resolvedIndex + 1);
-        fetchLeaderboard(targetEvent.id);
-      }
-    } catch (error) {
-      console.error("Ошибка отправки:", error);
-      setSubmitError("Ошибка сети. Очки рассчитаны, но результат не сохранен.");
-    } finally {
-      setIsSubmitting(false);
+    const guessPayload: PendingGuess = {
+      eventId: targetEvent.id,
+      eventIndex: resolvedIndex,
+      guessedTimeMs: nowMs,
+      deltaMs: delta,
+      score: calculatedScore,
+    };
+
+    if (signedDiff < 0) {
+      setPendingGuess(guessPayload);
+      setSubmitError(null);
+      return;
     }
+
+    await submitGuess(guessPayload);
+  };
+
+  const handleCancelPending = () => {
+    if (!pendingGuess || !currentEvent) return;
+    if (currentVideoMs >= currentEvent.eventTimeMs) return;
+    if (cancelAttemptsLeft <= 0) return;
+
+    setPendingGuess(null);
+    setCancelAttemptsLeft((prev) => prev - 1);
+    setGuessedTimeMs(null);
+    setDeltaMs(null);
+    setScore(null);
   };
 
   const handleModeChange = (nextMode: GameMode) => {
@@ -335,6 +399,9 @@ export default function GamePage() {
     setIsNameSet(false);
     resetRound();
   };
+
+  const canCancelPending =
+    !!pendingGuess && !!currentEvent && pendingGuess.eventId === currentEvent.id && currentVideoMs < currentEvent.eventTimeMs && cancelAttemptsLeft > 0;
 
   if (!isNameSet) {
     return (
@@ -417,17 +484,33 @@ export default function GamePage() {
               )}
             </div>
 
+            <div className="bg-white rounded-lg shadow-lg p-4">
+              <p className="text-sm text-zinc-600">
+                Можно отменить, осталось попыток для отмены: {cancelAttemptsLeft}
+              </p>
+              {canCancelPending && (
+                <button
+                  onClick={handleCancelPending}
+                  className="mt-3 px-4 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                >
+                  Отменить последний клик
+                </button>
+              )}
+            </div>
+
             <div className="flex justify-center">
               <button
                 onClick={handleGuess}
-                disabled={isSubmitting || currentEvent === null}
+                disabled={isSubmitting || currentEvent === null || !!pendingGuess}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
                 {isSubmitting
                   ? "Отправка..."
                   : currentEvent === null
                     ? "Все события пройдены"
-                    : selectedGame.buttonLabel}
+                    : pendingGuess
+                      ? "Ожидание события..."
+                      : selectedGame.buttonLabel}
               </button>
             </div>
 
@@ -463,9 +546,9 @@ export default function GamePage() {
                   <div className="pt-2 border-t border-zinc-200">
                     <p
                       className="text-3xl font-bold"
-                      style={{ color: score >= 70 ? "#22c55e" : score >= 40 ? "#eab308" : "#ef4444" }}
+                      style={{ color: score >= 35 ? "#22c55e" : score >= 12 ? "#eab308" : "#ef4444" }}
                     >
-                      Очки: {score}
+                      Очки за клик: {score}
                     </p>
                   </div>
                 </div>
