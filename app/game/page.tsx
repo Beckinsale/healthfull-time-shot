@@ -52,9 +52,9 @@ const GAMES: Record<
     videoSrc: "/demo2.mp4",
     promptTitle: "Угадайте момент наступления хэдшота",
     events: [
-      { id: "00000000-0000-0000-0000-000000000003", eventTimeMs: 900 },
-      { id: "00000000-0000-0000-0000-000000000004", eventTimeMs: 3600 },
-      { id: "00000000-0000-0000-0000-000000000005", eventTimeMs: 7000 },
+      { id: "00000000-0000-0000-0000-000000000003", eventTimeMs: 870 },
+      { id: "00000000-0000-0000-0000-000000000004", eventTimeMs: 3740 },
+      { id: "00000000-0000-0000-0000-000000000005", eventTimeMs: 7580 },
     ],
   },
 };
@@ -529,16 +529,34 @@ export default function GamePage() {
 
             <div className="bg-white rounded-lg shadow-lg p-6 min-h-[360px]">
               <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
-              <div className="space-y-3">
-                <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-amber-700">Суммарные очки</p>
-                  <p className="text-3xl font-extrabold text-amber-900">{totalScore}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-zinc-500">Ваше время</p>
-                  <p className="text-lg text-zinc-900">
-                    {guessedTimeMs !== null ? `${(guessedTimeMs / 1000).toFixed(2)}s (${guessedTimeMs}ms)` : "-"}
-                  </p>
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+                    <p className="text-xs uppercase tracking-wide text-amber-700">Суммарные очки</p>
+                    <p className="text-3xl font-extrabold text-amber-900">{totalScore}</p>
+                  </div>
+                  <div className="rounded-lg border px-4 py-3" style={{
+                    borderColor: score === null ? "#d4d4d8" : score >= 35 ? "#86efac" : score >= 12 ? "#fcd34d" : "#fca5a5",
+                    backgroundColor: score === null ? "#fafafa" : score >= 35 ? "#f0fdf4" : score >= 12 ? "#fffbeb" : "#fef2f2",
+                  }}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-wide text-zinc-600">Очки за клик</p>
+                      <p className="text-xs font-medium text-zinc-500">Максимум: 100</p>
+                    </div>
+                    <p
+                      className="text-4xl font-extrabold"
+                      style={{
+                        color:
+                          score === null ? "#71717a" : score >= 35 ? "#15803d" : score >= 12 ? "#b45309" : "#dc2626",
+                      }}
+                    >
+                      {score ?? "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-500">Ваше время</p>
+                    <p className="text-lg text-zinc-900">
+                      {guessedTimeMs !== null ? `${(guessedTimeMs / 1000).toFixed(2)}s (${guessedTimeMs}ms)` : "-"}
+                    </p>
                 </div>
                 <div>
                   <p className="text-sm text-zinc-500">Отклонение</p>
@@ -562,17 +580,7 @@ export default function GamePage() {
                         ))}
                   </div>
                 </div>
-                <div className="pt-2 border-t border-zinc-200 min-h-[52px]">
-                  <p
-                    className="text-3xl font-bold"
-                    style={{
-                      color:
-                        score === null ? "#71717a" : score >= 35 ? "#22c55e" : score >= 12 ? "#eab308" : "#ef4444",
-                    }}
-                  >
-                    Очки за клик: {score ?? "-"}
-                  </p>
-                </div>
+                <div className="pt-2 border-t border-zinc-200 min-h-[8px]" />
               </div>
             </div>
 

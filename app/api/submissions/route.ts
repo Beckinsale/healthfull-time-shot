@@ -11,19 +11,19 @@ const EVENTS: Record<string, { game_id: string; event_time_ms: number; label: st
   },
   '00000000-0000-0000-0000-000000000003': {
     game_id: '00000000-0000-0000-0000-000000000010',
-    event_time_ms: 900,
+    event_time_ms: 870,
     label: 'Headshot 1',
     game_mode: 'cs2',
   },
   '00000000-0000-0000-0000-000000000004': {
     game_id: '00000000-0000-0000-0000-000000000010',
-    event_time_ms: 3600,
+    event_time_ms: 3740,
     label: 'Headshot 2',
     game_mode: 'cs2',
   },
   '00000000-0000-0000-0000-000000000005': {
     game_id: '00000000-0000-0000-0000-000000000010',
-    event_time_ms: 7000,
+    event_time_ms: 7580,
     label: 'Headshot 3',
     game_mode: 'cs2',
   },
