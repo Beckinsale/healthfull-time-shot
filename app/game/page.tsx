@@ -76,7 +76,7 @@ export default function GamePage() {
 
   const [playerName, setPlayerName] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
-  const [hasGuessed, setHasGuessed] = useState(false);
+  const [submittedEventIds, setSubmittedEventIds] = useState<string[]>([]);
   const [guessedTimeMs, setGuessedTimeMs] = useState<number | null>(null);
   const [deltaMs, setDeltaMs] = useState<number | null>(null);
   const [score, setScore] = useState<number | null>(null);
@@ -91,12 +91,15 @@ export default function GamePage() {
   const selectedGame = useMemo(() => GAMES[mode], [mode]);
   const currentEvent = selectedGame.events[currentEventIndex] ?? null;
 
-  const resolveCurrentEventIndex = (timeMs: number, startIndex: number) => {
+  const resolveCurrentEventIndex = (timeMs: number, startIndex: number, existingSubmittedEventIds: string[]) => {
     let nextIndex = startIndex;
 
     while (
       nextIndex < selectedGame.events.length &&
-      timeMs > selectedGame.events[nextIndex].eventTimeMs + EVENT_GRACE_MS
+      (
+        existingSubmittedEventIds.includes(selectedGame.events[nextIndex].id) ||
+        timeMs > selectedGame.events[nextIndex].eventTimeMs + EVENT_GRACE_MS
+      )
     ) {
       nextIndex += 1;
     }
@@ -105,7 +108,7 @@ export default function GamePage() {
   };
 
   const resetRound = () => {
-    setHasGuessed(false);
+    setSubmittedEventIds([]);
     setGuessedTimeMs(null);
     setDeltaMs(null);
     setScore(null);
@@ -155,8 +158,8 @@ export default function GamePage() {
       if (!submission) {
         setTotalScore(accumulatedScore);
         setResultHistory(restoredHistory);
+        setSubmittedEventIds(restoredHistory.map((item) => item.eventId));
         setCurrentEventIndex(i);
-        setHasGuessed(false);
         setSubmitError(null);
 
         if (lastSubmission) {
@@ -184,8 +187,8 @@ export default function GamePage() {
 
     setTotalScore(accumulatedScore);
     setResultHistory(restoredHistory);
+    setSubmittedEventIds(restoredHistory.map((item) => item.eventId));
     setCurrentEventIndex(events.length);
-    setHasGuessed(false);
     setSubmitError(null);
 
     if (lastSubmission) {
@@ -226,16 +229,15 @@ export default function GamePage() {
       if (!videoRef.current) return;
 
       const nowMs = Math.round(videoRef.current.currentTime * 1000);
-      const nextIndex = resolveCurrentEventIndex(nowMs, currentEventIndex);
+      const nextIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, submittedEventIds);
 
       if (nextIndex !== currentEventIndex) {
         setCurrentEventIndex(nextIndex);
-        setHasGuessed(false);
       }
     }, 150);
 
     return () => window.clearInterval(timer);
-  }, [currentEvent, currentEventIndex, selectedGame.events.length]);
+  }, [currentEvent, currentEventIndex, selectedGame.events.length, submittedEventIds]);
 
   const handleNameSubmit = () => {
     if (playerName.trim()) {
@@ -250,16 +252,19 @@ export default function GamePage() {
     if (!videoRef.current || isSubmitting || !currentEvent) return;
 
     const nowMs = Math.round(videoRef.current.currentTime * 1000);
-    const resolvedIndex = resolveCurrentEventIndex(nowMs, currentEventIndex);
+    const resolvedIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, submittedEventIds);
 
     if (resolvedIndex !== currentEventIndex) {
       setCurrentEventIndex(resolvedIndex);
-      setHasGuessed(false);
     }
 
     const targetEvent = selectedGame.events[resolvedIndex] ?? null;
-    const alreadyGuessedForTargetEvent = resolvedIndex === currentEventIndex ? hasGuessed : false;
-    if (!targetEvent || alreadyGuessedForTargetEvent) return;
+    if (!targetEvent) return;
+
+    if (submittedEventIds.includes(targetEvent.id)) {
+      setCurrentEventIndex(resolvedIndex + 1);
+      return;
+    }
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -271,8 +276,6 @@ export default function GamePage() {
     setGuessedTimeMs(timeMs);
     setDeltaMs(delta);
     setScore(calculatedScore);
-    setHasGuessed(true);
-
     try {
       const response = await fetch("/api/submissions", {
         method: "POST",
@@ -286,8 +289,14 @@ export default function GamePage() {
 
       if (!response.ok) {
         const data = await response.json();
-        setSubmitError(data.error || "Не удалось сохранить результат");
+        if (response.status === 409) {
+          setSubmittedEventIds((prev) => (prev.includes(targetEvent.id) ? prev : [...prev, targetEvent.id]));
+          setCurrentEventIndex(resolvedIndex + 1);
+        } else {
+          setSubmitError(data.error || "Не удалось сохранить результат");
+        }
       } else {
+        setSubmittedEventIds((prev) => (prev.includes(targetEvent.id) ? prev : [...prev, targetEvent.id]));
         setTotalScore((prev) => prev + calculatedScore);
         setResultHistory((prev) => {
           const next = prev.filter((item) => item.eventId !== targetEvent.id);
@@ -300,6 +309,7 @@ export default function GamePage() {
           });
           return next.sort((a, b) => a.eventNumber - b.eventNumber);
         });
+        setCurrentEventIndex(resolvedIndex + 1);
         fetchLeaderboard(targetEvent.id);
       }
     } catch (error) {
@@ -410,7 +420,7 @@ export default function GamePage() {
             <div className="flex justify-center">
               <button
                 onClick={handleGuess}
-                disabled={hasGuessed || isSubmitting || currentEvent === null}
+                disabled={isSubmitting || currentEvent === null}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
                 {isSubmitting
