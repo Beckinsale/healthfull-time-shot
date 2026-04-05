@@ -13,6 +13,14 @@ type SubmissionData = {
   score: number;
 };
 
+type ResultEntry = {
+  eventId: string;
+  eventNumber: number;
+  guessedTimeMs: number;
+  deltaMs: number;
+  score: number;
+};
+
 type GameMode = "football" | "cs2";
 
 const EVENT_GRACE_MS = 900;
@@ -64,6 +72,8 @@ export default function GamePage() {
   const [guessedTimeMs, setGuessedTimeMs] = useState<number | null>(null);
   const [deltaMs, setDeltaMs] = useState<number | null>(null);
   const [score, setScore] = useState<number | null>(null);
+  const [totalScore, setTotalScore] = useState(0);
+  const [resultHistory, setResultHistory] = useState<ResultEntry[]>([]);
   const [videoError, setVideoError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -91,6 +101,8 @@ export default function GamePage() {
     setGuessedTimeMs(null);
     setDeltaMs(null);
     setScore(null);
+    setTotalScore(0);
+    setResultHistory([]);
     setSubmitError(null);
   };
 
@@ -127,10 +139,14 @@ export default function GamePage() {
   const restoreProgress = async (name: string, gameMode: GameMode) => {
     const events = GAMES[gameMode].events;
     let lastSubmission: SubmissionData | null = null;
+    let accumulatedScore = 0;
+    const restoredHistory: ResultEntry[] = [];
 
     for (let i = 0; i < events.length; i += 1) {
       const submission = await getSubmission(name, events[i].id);
       if (!submission) {
+        setTotalScore(accumulatedScore);
+        setResultHistory(restoredHistory);
         setCurrentEventIndex(i);
         setHasGuessed(false);
         setSubmitError(null);
@@ -148,8 +164,18 @@ export default function GamePage() {
       }
 
       lastSubmission = submission;
+      accumulatedScore += submission.score;
+      restoredHistory.push({
+        eventId: events[i].id,
+        eventNumber: i + 1,
+        guessedTimeMs: submission.guessed_time_ms,
+        deltaMs: submission.delta_ms,
+        score: submission.score,
+      });
     }
 
+    setTotalScore(accumulatedScore);
+    setResultHistory(restoredHistory);
     setCurrentEventIndex(events.length);
     setHasGuessed(false);
     setSubmitError(null);
@@ -254,6 +280,18 @@ export default function GamePage() {
         const data = await response.json();
         setSubmitError(data.error || "Не удалось сохранить результат");
       } else {
+        setTotalScore((prev) => prev + calculatedScore);
+        setResultHistory((prev) => {
+          const next = prev.filter((item) => item.eventId !== targetEvent.id);
+          next.push({
+            eventId: targetEvent.id,
+            eventNumber: resolvedIndex + 1,
+            guessedTimeMs: timeMs,
+            deltaMs: delta,
+            score: calculatedScore,
+          });
+          return next.sort((a, b) => a.eventNumber - b.eventNumber);
+        });
         fetchLeaderboard(targetEvent.id);
       }
     } catch (error) {
@@ -380,6 +418,10 @@ export default function GamePage() {
                 <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
                 <div className="space-y-3">
                   <div>
+                    <p className="text-sm text-zinc-500">Суммарные очки</p>
+                    <p className="text-xl font-semibold text-zinc-900">{totalScore}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-zinc-500">Ваше время</p>
                     <p className="text-lg text-zinc-900">{(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)</p>
                   </div>
@@ -387,6 +429,19 @@ export default function GamePage() {
                     <p className="text-sm text-zinc-500">Отклонение</p>
                     <p className="text-lg font-semibold text-zinc-900">{deltaMs}ms</p>
                   </div>
+                  {resultHistory.length > 0 && (
+                    <div>
+                      <p className="text-sm text-zinc-500 mb-2">Отклонения по событиям</p>
+                      <div className="space-y-2">
+                        {resultHistory.map((item) => (
+                          <div key={item.eventId} className="flex items-center justify-between text-sm text-zinc-700">
+                            <span>Событие {item.eventNumber}</span>
+                            <span>{item.deltaMs}ms (очки: {item.score})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="pt-2 border-t border-zinc-200">
                     <p
                       className="text-3xl font-bold"
