@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 
-const EVENT_TIME_MS = 14500;
+const EVENT_TIME_MS = 10000; // 10 seconds - adjusted for demo video
 
 function calculateScore(deltaMs: number): number {
   if (deltaMs <= 300) return 100;

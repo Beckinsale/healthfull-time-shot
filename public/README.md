@@ -1,10 +1,11 @@
 # Video File
 
-Please add a video file named `demo.mp4` to this directory.
+A demo video file `demo.mp4` has been added to this directory.
 
 The demo event is configured for:
-- Event time: 14500ms (14.5 seconds)
+- Event time: 10000ms (10 seconds)
 - Event label: "Goal"
 - Event type: "goal"
 
-You can use any video file for testing purposes.
+Current video: Sample video (13.35 seconds duration)
+Try to click "Guess Now!" at around 10 seconds mark!
