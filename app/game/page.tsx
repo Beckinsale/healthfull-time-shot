@@ -15,7 +15,7 @@ type SubmissionData = {
 
 type GameMode = "football" | "cs2";
 
-const EVENT_GRACE_MS = 400;
+const EVENT_GRACE_MS = 900;
 
 const GAMES: Record<
   GameMode,
@@ -224,7 +224,8 @@ export default function GamePage() {
     }
 
     const targetEvent = selectedGame.events[resolvedIndex] ?? null;
-    if (!targetEvent || hasGuessed) return;
+    const alreadyGuessedForTargetEvent = resolvedIndex === currentEventIndex ? hasGuessed : false;
+    if (!targetEvent || alreadyGuessedForTargetEvent) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -295,7 +296,7 @@ export default function GamePage() {
           <button
             onClick={handleNameSubmit}
             disabled={!playerName.trim()}
-            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-zinc-300 disabled:cursor-not-allowed"
+            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:bg-zinc-300 disabled:cursor-not-allowed"
           >
             Начать
           </button>
@@ -311,7 +312,7 @@ export default function GamePage() {
           <h1 className="text-3xl font-bold text-zinc-900">Игра на точность тайминга - {playerName}</h1>
           <button
             onClick={handleChangeName}
-            className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
           >
             Сменить имя
           </button>
@@ -322,7 +323,7 @@ export default function GamePage() {
             onClick={() => handleModeChange("football")}
             className={`px-4 py-2 rounded-lg border ${
               mode === "football" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-zinc-700 border-zinc-300"
-            }`}
+            } cursor-pointer`}
           >
             Футбол
           </button>
@@ -330,7 +331,7 @@ export default function GamePage() {
             onClick={() => handleModeChange("cs2")}
             className={`px-4 py-2 rounded-lg border ${
               mode === "cs2" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-zinc-700 border-zinc-300"
-            }`}
+            } cursor-pointer`}
           >
             CS2
           </button>
@@ -364,7 +365,7 @@ export default function GamePage() {
               <button
                 onClick={handleGuess}
                 disabled={hasGuessed || isSubmitting || currentEvent === null}
-                className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
+                className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
                 {isSubmitting
                   ? "Отправка..."
