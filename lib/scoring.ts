@@ -13,17 +13,23 @@ type ScoreProfile = {
 const SCORE_PROFILES: Record<GameScoreMode, ScoreProfile> = {
   football: {
     early: [
-      { maxMs: 120, score: 100 },
-      { maxMs: 220, score: 60 },
-      { maxMs: 400, score: 30 },
-      { maxMs: 800, score: 10 },
+      { maxMs: 180, score: 100 },
+      { maxMs: 320, score: 85 },
+      { maxMs: 500, score: 70 },
+      { maxMs: 800, score: 55 },
+      { maxMs: 1200, score: 40 },
+      { maxMs: 1800, score: 25 },
+      { maxMs: 2600, score: 12 },
     ],
     late: [
-      { maxMs: 120, score: 100 },
-      { maxMs: 220, score: 75 },
-      { maxMs: 400, score: 40 },
-      { maxMs: 700, score: 15 },
-      { maxMs: 1200, score: 4 },
+      { maxMs: 180, score: 100 },
+      { maxMs: 320, score: 90 },
+      { maxMs: 500, score: 75 },
+      { maxMs: 800, score: 60 },
+      { maxMs: 1200, score: 45 },
+      { maxMs: 1800, score: 30 },
+      { maxMs: 2600, score: 15 },
+      { maxMs: 3500, score: 8 },
     ],
   },
   cs2: {
