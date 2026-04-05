@@ -504,14 +504,17 @@ export default function GamePage() {
               <p className="text-sm text-zinc-600">
                 Можно отменить, осталось попыток для отмены: {cancelAttemptsLeft}
               </p>
-              {canCancelPending && (
+              <div className="mt-3 h-10">
                 <button
                   onClick={handleCancelPending}
-                  className="mt-3 px-4 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                  disabled={!canCancelPending}
+                  className={`px-4 py-2 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed ${
+                    canCancelPending ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-zinc-200 text-zinc-500"
+                  }`}
                 >
                   Отменить последний клик
                 </button>
-              )}
+              </div>
             </div>
 
             <div className="flex justify-center">
@@ -524,46 +527,54 @@ export default function GamePage() {
               </button>
             </div>
 
-            {guessedTimeMs !== null && deltaMs !== null && score !== null && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-amber-700">Суммарные очки</p>
-                    <p className="text-3xl font-extrabold text-amber-900">{totalScore}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-zinc-500">Ваше время</p>
-                    <p className="text-lg text-zinc-900">{(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-zinc-500">Отклонение</p>
-                    <p className="text-lg font-semibold text-zinc-900">{deltaMs}ms</p>
-                  </div>
-                  {resultHistory.length > 0 && (
-                    <div>
-                      <p className="text-sm text-zinc-500 mb-2">Отклонения по событиям</p>
-                      <div className="space-y-2">
-                        {resultHistory.map((item) => (
+            <div className="bg-white rounded-lg shadow-lg p-6 min-h-[360px]">
+              <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
+              <div className="space-y-3">
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Суммарные очки</p>
+                  <p className="text-3xl font-extrabold text-amber-900">{totalScore}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-zinc-500">Ваше время</p>
+                  <p className="text-lg text-zinc-900">
+                    {guessedTimeMs !== null ? `${(guessedTimeMs / 1000).toFixed(2)}s (${guessedTimeMs}ms)` : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-zinc-500">Отклонение</p>
+                  <p className="text-lg font-semibold text-zinc-900">{deltaMs !== null ? `${deltaMs}ms` : "-"}</p>
+                </div>
+                <div className="min-h-[104px]">
+                  <p className="text-sm text-zinc-500 mb-2">Отклонения по событиям</p>
+                  <div className="space-y-2">
+                    {resultHistory.length > 0
+                      ? resultHistory.map((item) => (
                           <div key={item.eventId} className="flex items-center justify-between text-sm text-zinc-700">
                             <span>{getEventDisplayLabel(mode, item.eventNumber)}</span>
                             <span>{item.deltaMs}ms (очки: {item.score})</span>
                           </div>
+                        ))
+                      : Array.from({ length: selectedGame.events.length }).map((_, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-sm text-zinc-400">
+                            <span>{getEventDisplayLabel(mode, idx + 1)}</span>
+                            <span>-</span>
+                          </div>
                         ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="pt-2 border-t border-zinc-200">
-                    <p
-                      className="text-3xl font-bold"
-                      style={{ color: score >= 35 ? "#22c55e" : score >= 12 ? "#eab308" : "#ef4444" }}
-                    >
-                      Очки за клик: {score}
-                    </p>
                   </div>
                 </div>
+                <div className="pt-2 border-t border-zinc-200 min-h-[52px]">
+                  <p
+                    className="text-3xl font-bold"
+                    style={{
+                      color:
+                        score === null ? "#71717a" : score >= 35 ? "#22c55e" : score >= 12 ? "#eab308" : "#ef4444",
+                    }}
+                  >
+                    Очки за клик: {score ?? "-"}
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
 
             {submitError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -573,7 +584,7 @@ export default function GamePage() {
           </div>
 
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8">
+            <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8 min-h-[560px]">
               <h2 className="text-xl font-bold text-zinc-900 mb-1">Таблица лидеров</h2>
               <p className="text-sm text-zinc-500 mb-4">{selectedGame.title}</p>
 
