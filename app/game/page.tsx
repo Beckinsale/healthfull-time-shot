@@ -105,6 +105,8 @@ export default function GamePage() {
   const [pendingGuess, setPendingGuess] = useState<PendingGuess | null>(null);
   const [cancelAttemptsLeft, setCancelAttemptsLeft] = useState(1);
   const [currentVideoMs, setCurrentVideoMs] = useState(0);
+  const [triggeredCueIds, setTriggeredCueIds] = useState<string[]>([]);
+  const [activeCueText, setActiveCueText] = useState<string | null>(null);
 
   const [videoError, setVideoError] = useState(false);
   const [inFlightEventIds, setInFlightEventIds] = useState<string[]>([]);
@@ -138,6 +140,8 @@ export default function GamePage() {
     setResultHistory([]);
     setPendingGuess(null);
     setCancelAttemptsLeft(1);
+    setTriggeredCueIds([]);
+    setActiveCueText(null);
     setSubmitError(null);
     setCurrentVideoMs(0);
   };
@@ -312,6 +316,22 @@ export default function GamePage() {
       const nowMs = Math.round(videoRef.current.currentTime * 1000);
       setCurrentVideoMs(nowMs);
 
+      const lastEvent = selectedGame.events[selectedGame.events.length - 1];
+      if (lastEvent && nowMs >= lastEvent.eventTimeMs && !pendingGuess) {
+        moveToEventIndex(selectedGame.events.length);
+        return;
+      }
+
+      selectedGame.events.forEach((event, idx) => {
+        if (!triggeredCueIds.includes(event.id) && nowMs >= event.eventTimeMs) {
+          setTriggeredCueIds((prev) => [...prev, event.id]);
+          setActiveCueText(`${getEventDisplayLabel(mode, idx + 1)} наступило`);
+          window.setTimeout(() => {
+            setActiveCueText((prev) => (prev?.startsWith(`Событие ${idx + 1}`) ? null : prev));
+          }, 1200);
+        }
+      });
+
       if (!currentEvent) return;
       if (pendingGuess && pendingGuess.eventId === currentEvent.id) return;
 
@@ -322,7 +342,7 @@ export default function GamePage() {
     }, 120);
 
     return () => window.clearInterval(timer);
-  }, [currentEvent, currentEventIndex, blockedEventIds, selectedGame.events, eventGraceMs]);
+  }, [currentEvent, currentEventIndex, blockedEventIds, selectedGame.events, eventGraceMs, triggeredCueIds, mode]);
 
   useEffect(() => {
     if (!pendingGuess || !currentEvent) return;
@@ -412,10 +432,6 @@ export default function GamePage() {
     resetRound();
   };
 
-  const handleVideoEnded = () => {
-    moveToEventIndex(selectedGame.events.length);
-  };
-
   const canCancelPending =
     !!pendingGuess && !!currentEvent && pendingGuess.eventId === currentEvent.id && currentVideoMs < currentEvent.eventTimeMs && cancelAttemptsLeft > 0;
 
@@ -480,6 +496,12 @@ export default function GamePage() {
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-lg shadow-lg p-4">
               <h2 className="text-xl font-semibold text-zinc-900">{selectedGame.promptTitle}</h2>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-sm text-zinc-500">Текущее время: {(currentVideoMs / 1000).toFixed(2)}s</p>
+                <span className={`text-sm font-semibold px-3 py-1 rounded ${activeCueText ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-500"}`}>
+                  {activeCueText ?? "Ожидание события..."}
+                </span>
+              </div>
             </div>
 
             <div className="bg-white rounded-lg shadow-lg p-4">
@@ -496,7 +518,6 @@ export default function GamePage() {
                   ref={videoRef}
                   className="w-full aspect-video bg-black rounded"
                   controls
-                  onEnded={handleVideoEnded}
                   onError={() => setVideoError(true)}
                 >
                   <source src={selectedGame.videoSrc} type="video/mp4" />
