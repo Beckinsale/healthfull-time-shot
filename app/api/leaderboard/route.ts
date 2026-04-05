@@ -6,6 +6,7 @@ const DEFAULT_EVENT_ID = '00000000-0000-0000-0000-000000000002';
 export async function GET(request: NextRequest) {
   try {
     const eventId = request.nextUrl.searchParams.get('event_id') || DEFAULT_EVENT_ID;
+    const playerName = request.nextUrl.searchParams.get('player_name');
 
     const { data, error } = await supabase
       .from('submissions')
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
       .eq('event_id', eventId)
       .order('score', { ascending: false })
       .order('delta_ms', { ascending: true })
-      .limit(10);
+      .order('created_at', { ascending: true });
 
     if (error) {
       console.error('Supabase error:', error);
@@ -23,14 +24,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const leaderboard = data.map((entry, index) => ({
+    const ranked = data.map((entry, index) => ({
       rank: index + 1,
       name: entry.player_name,
       score: entry.score,
       delta: entry.delta_ms,
     }));
 
-    return NextResponse.json({ leaderboard });
+    const leaderboard = ranked.slice(0, 5);
+    const playerRow = playerName ? ranked.find((entry) => entry.name === playerName) ?? null : null;
+
+    return NextResponse.json({ leaderboard, player_row: playerRow, total: ranked.length });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(

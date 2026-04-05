@@ -111,6 +111,7 @@ export default function GamePage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; name: string; score: number; delta: number }>>([]);
+  const [playerRow, setPlayerRow] = useState<{ rank: number; name: string; score: number; delta: number } | null>(null);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
 
   const selectedGame = useMemo(() => GAMES[mode], [mode]);
@@ -139,10 +140,16 @@ export default function GamePage() {
   const fetchLeaderboard = async (eventId: string) => {
     try {
       setIsLoadingLeaderboard(true);
-      const response = await fetch(`/api/leaderboard?event_id=${encodeURIComponent(eventId)}`);
+      const query = new URLSearchParams({ event_id: eventId });
+      if (playerName) {
+        query.set("player_name", playerName);
+      }
+
+      const response = await fetch(`/api/leaderboard?${query.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setLeaderboard(data.leaderboard || []);
+        setPlayerRow(data.player_row || null);
       }
     } catch (error) {
       console.error("Не удалось загрузить таблицу лидеров:", error);
@@ -287,9 +294,10 @@ export default function GamePage() {
       fetchLeaderboard(currentEvent.id);
     } else {
       setLeaderboard([]);
+      setPlayerRow(null);
       setIsLoadingLeaderboard(false);
     }
-  }, [currentEvent?.id]);
+  }, [currentEvent?.id, playerName]);
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -574,10 +582,15 @@ export default function GamePage() {
               ) : (
                 <div className="space-y-3">
                   {leaderboard.map((entry) => (
-                    <div key={entry.rank} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
+                    <div
+                      key={entry.rank}
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        entry.name === playerName ? "bg-amber-100 border border-amber-300" : "bg-zinc-50"
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
                         <span className="font-bold text-lg text-zinc-900">#{entry.rank}</span>
-                        <span className="text-zinc-700">{entry.name}</span>
+                        <span className={`text-zinc-700 ${entry.name === playerName ? "font-bold" : ""}`}>{entry.name}</span>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-blue-600">{entry.score}</div>
@@ -585,6 +598,22 @@ export default function GamePage() {
                       </div>
                     </div>
                   ))}
+
+                  {playerRow && !leaderboard.some((entry) => entry.name === playerRow.name) && (
+                    <>
+                      <div className="text-center text-zinc-400">...</div>
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-amber-100 border border-amber-300">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-lg text-zinc-900">#{playerRow.rank}</span>
+                          <span className="text-zinc-700 font-bold">{playerRow.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-blue-600">{playerRow.score}</div>
+                          <div className="text-xs text-zinc-500">{playerRow.delta}ms</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
