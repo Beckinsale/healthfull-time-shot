@@ -37,20 +37,20 @@ const GAMES: Record<
   {
     title: string;
     videoSrc: string;
-    buttonLabel: string;
+    promptTitle: string;
     events: EventConfig[];
   }
 > = {
   football: {
     title: "Футбол",
     videoSrc: "/demo.mp4",
-    buttonLabel: "Угадать гол",
+    promptTitle: "Угадайте момент наступления гола",
     events: [{ id: "00000000-0000-0000-0000-000000000002", eventTimeMs: 3000 }],
   },
   cs2: {
     title: "CS2",
     videoSrc: "/demo2.mp4",
-    buttonLabel: "Угадать headshot",
+    promptTitle: "Угадайте момент наступления хэдшота",
     events: [
       { id: "00000000-0000-0000-0000-000000000003", eventTimeMs: 900 },
       { id: "00000000-0000-0000-0000-000000000004", eventTimeMs: 3000 },
@@ -475,6 +475,10 @@ export default function GamePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-lg shadow-lg p-4">
+              <h2 className="text-xl font-semibold text-zinc-900">{selectedGame.promptTitle}</h2>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-lg p-4">
               {videoError ? (
                 <div className="aspect-video bg-zinc-900 rounded flex flex-col items-center justify-center p-8">
                   <p className="text-white text-lg mb-4 text-center">Видеофайл не найден</p>
@@ -516,7 +520,7 @@ export default function GamePage() {
                 disabled={currentEvent === null}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
-                {currentEvent === null ? "Все события пройдены" : pendingGuess ? "Ожидание события..." : selectedGame.buttonLabel}
+                {currentEvent === null ? "Все события пройдены" : pendingGuess ? "Ожидание события..." : "Угадать"}
               </button>
             </div>
 
