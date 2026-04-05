@@ -17,7 +17,7 @@ const EVENTS: Record<string, { game_id: string; event_time_ms: number; label: st
   },
   '00000000-0000-0000-0000-000000000004': {
     game_id: '00000000-0000-0000-0000-000000000010',
-    event_time_ms: 3000,
+    event_time_ms: 3600,
     label: 'Headshot 2',
     game_mode: 'cs2',
   },
