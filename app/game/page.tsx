@@ -107,7 +107,7 @@ export default function GamePage() {
   const [currentVideoMs, setCurrentVideoMs] = useState(0);
 
   const [videoError, setVideoError] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inFlightEventIds, setInFlightEventIds] = useState<string[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; name: string; score: number; delta: number }>>([]);
@@ -117,6 +117,11 @@ export default function GamePage() {
   const selectedGame = useMemo(() => GAMES[mode], [mode]);
   const currentEvent = selectedGame.events[currentEventIndex] ?? null;
   const eventGraceMs = EVENT_GRACE_MS_BY_GAME[mode];
+  const blockedEventIds = useMemo(() => {
+    const ids = [...submittedEventIds, ...inFlightEventIds];
+    if (pendingGuess) ids.push(pendingGuess.eventId);
+    return [...new Set(ids)];
+  }, [submittedEventIds, inFlightEventIds, pendingGuess]);
 
   const moveToEventIndex = (index: number) => {
     setCurrentEventIndex(index);
@@ -225,9 +230,8 @@ export default function GamePage() {
   };
 
   const submitGuess = async (guess: PendingGuess) => {
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
+    setPendingGuess((prev) => (prev && prev.eventId === guess.eventId ? null : prev));
+    setInFlightEventIds((prev) => (prev.includes(guess.eventId) ? prev : [...prev, guess.eventId]));
     setSubmitError(null);
 
     try {
@@ -270,7 +274,7 @@ export default function GamePage() {
       console.error("Ошибка отправки:", error);
       setSubmitError("Ошибка сети. Очки рассчитаны, но результат не сохранен.");
     } finally {
-      setIsSubmitting(false);
+      setInFlightEventIds((prev) => prev.filter((id) => id !== guess.eventId));
     }
   };
 
@@ -311,22 +315,22 @@ export default function GamePage() {
       if (!currentEvent) return;
       if (pendingGuess && pendingGuess.eventId === currentEvent.id) return;
 
-      const nextIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, selectedGame.events, submittedEventIds, eventGraceMs);
+      const nextIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, selectedGame.events, blockedEventIds, eventGraceMs);
       if (nextIndex !== currentEventIndex) {
         moveToEventIndex(nextIndex);
       }
     }, 120);
 
     return () => window.clearInterval(timer);
-  }, [currentEvent, currentEventIndex, pendingGuess, selectedGame.events, submittedEventIds]);
+  }, [currentEvent, currentEventIndex, blockedEventIds, selectedGame.events, eventGraceMs]);
 
   useEffect(() => {
-    if (!pendingGuess || !currentEvent || isSubmitting) return;
+    if (!pendingGuess || !currentEvent) return;
     if (pendingGuess.eventId !== currentEvent.id) return;
     if (currentVideoMs < currentEvent.eventTimeMs) return;
 
     submitGuess(pendingGuess);
-  }, [pendingGuess, currentEvent, currentVideoMs, isSubmitting]);
+  }, [pendingGuess, currentEvent, currentVideoMs]);
 
   const handleNameSubmit = () => {
     if (playerName.trim()) {
@@ -338,10 +342,10 @@ export default function GamePage() {
   };
 
   const handleGuess = async () => {
-    if (!videoRef.current || isSubmitting || !currentEvent) return;
+    if (!videoRef.current || !currentEvent) return;
 
     const nowMs = Math.round(videoRef.current.currentTime * 1000);
-    const resolvedIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, selectedGame.events, submittedEventIds, eventGraceMs);
+    const resolvedIndex = resolveCurrentEventIndex(nowMs, currentEventIndex, selectedGame.events, blockedEventIds, eventGraceMs);
 
     if (resolvedIndex !== currentEventIndex) {
       moveToEventIndex(resolvedIndex);
@@ -350,7 +354,7 @@ export default function GamePage() {
     const targetEvent = selectedGame.events[resolvedIndex] ?? null;
     if (!targetEvent) return;
 
-    if (submittedEventIds.includes(targetEvent.id)) {
+    if (blockedEventIds.includes(targetEvent.id)) {
       moveToEventIndex(resolvedIndex + 1);
       return;
     }
@@ -509,16 +513,10 @@ export default function GamePage() {
             <div className="flex justify-center">
               <button
                 onClick={handleGuess}
-                disabled={isSubmitting || currentEvent === null || !!pendingGuess}
+                disabled={currentEvent === null}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
-                {isSubmitting
-                  ? "Отправка..."
-                  : currentEvent === null
-                    ? "Все события пройдены"
-                    : pendingGuess
-                      ? "Ожидание события..."
-                      : selectedGame.buttonLabel}
+                {currentEvent === null ? "Все события пройдены" : pendingGuess ? "Ожидание события..." : selectedGame.buttonLabel}
               </button>
             </div>
 
