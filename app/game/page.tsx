@@ -23,12 +23,28 @@ export default function GamePage() {
   const [videoError, setVideoError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [leaderboard, setLeaderboard] = useState<Array<{
+    rank: number;
+    name: string;
+    score: number;
+    delta: number;
+  }>>([]);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
 
-  const mockLeaderboard = [
-    { rank: 1, name: "Player1", score: 100, delta: 150 },
-    { rank: 2, name: "Player2", score: 70, delta: 800 },
-    { rank: 3, name: "Player3", score: 40, delta: 1500 },
-  ];
+  const fetchLeaderboard = async () => {
+    try {
+      setIsLoadingLeaderboard(true);
+      const response = await fetch('/api/leaderboard');
+      if (response.ok) {
+        const data = await response.json();
+        setLeaderboard(data.leaderboard || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch leaderboard:', error);
+    } finally {
+      setIsLoadingLeaderboard(false);
+    }
+  };
 
   useEffect(() => {
     const savedName = localStorage.getItem("playerName");
@@ -41,6 +57,8 @@ export default function GamePage() {
     if (hasSubmitted === 'true') {
       setHasGuessed(true);
     }
+
+    fetchLeaderboard();
   }, []);
 
   const handleNameSubmit = () => {
@@ -87,6 +105,9 @@ export default function GamePage() {
           } else {
             setSubmitError(data.error || 'Failed to save submission');
           }
+        } else {
+          // Refresh leaderboard after successful submission
+          fetchLeaderboard();
         }
       } catch (error) {
         console.error('Submit error:', error);
@@ -211,25 +232,33 @@ export default function GamePage() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8">
               <h2 className="text-xl font-bold text-zinc-900 mb-4">Leaderboard</h2>
-              <div className="space-y-3">
-                {mockLeaderboard.map((entry) => (
-                  <div
-                    key={entry.rank}
-                    className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-lg text-zinc-900">
-                        #{entry.rank}
-                      </span>
-                      <span className="text-zinc-700">{entry.name}</span>
+              {isLoadingLeaderboard ? (
+                <div className="text-center py-8 text-zinc-500">Loading...</div>
+              ) : leaderboard.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500">
+                  No submissions yet. Be the first!
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {leaderboard.map((entry) => (
+                    <div
+                      key={entry.rank}
+                      className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-lg text-zinc-900">
+                          #{entry.rank}
+                        </span>
+                        <span className="text-zinc-700">{entry.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-blue-600">{entry.score}</div>
+                        <div className="text-xs text-zinc-500">{entry.delta}ms</div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold text-blue-600">{entry.score}</div>
-                      <div className="text-xs text-zinc-500">{entry.delta}ms</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
