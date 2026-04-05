@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-const DEMO_GAME_ID = '00000000-0000-0000-0000-000000000001';
-const DEMO_EVENT_ID = '00000000-0000-0000-0000-000000000002';
-const EVENT_TIME_MS = 3000; // 3 seconds - goal moment in football video
+const EVENTS: Record<string, { game_id: string; event_time_ms: number; label: string }> = {
+  '00000000-0000-0000-0000-000000000002': {
+    game_id: '00000000-0000-0000-0000-000000000001',
+    event_time_ms: 3000,
+    label: 'Goal',
+  },
+  '00000000-0000-0000-0000-000000000003': {
+    game_id: '00000000-0000-0000-0000-000000000010',
+    event_time_ms: 900,
+    label: 'Headshot 1',
+  },
+  '00000000-0000-0000-0000-000000000004': {
+    game_id: '00000000-0000-0000-0000-000000000010',
+    event_time_ms: 3000,
+    label: 'Headshot 2',
+  },
+  '00000000-0000-0000-0000-000000000005': {
+    game_id: '00000000-0000-0000-0000-000000000010',
+    event_time_ms: 7000,
+    label: 'Headshot 3',
+  },
+};
+
+const DEFAULT_EVENT_ID = '00000000-0000-0000-0000-000000000002';
 
 function calculateScore(deltaMs: number): number {
   if (deltaMs <= 300) return 100;
@@ -16,11 +37,20 @@ function calculateScore(deltaMs: number): number {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { player_name, guessed_time_ms } = body;
+    const { player_name, guessed_time_ms, event_id } = body;
+    const selectedEventId = typeof event_id === 'string' ? event_id : DEFAULT_EVENT_ID;
+    const selectedEvent = EVENTS[selectedEventId];
 
     if (!player_name || typeof guessed_time_ms !== 'number') {
       return NextResponse.json(
         { error: 'Отсутствуют обязательные поля' },
+        { status: 400 }
+      );
+    }
+
+    if (!selectedEvent) {
+      return NextResponse.json(
+        { error: 'Некорректное событие' },
         { status: 400 }
       );
     }
@@ -30,7 +60,7 @@ export async function POST(request: NextRequest) {
       .from('submissions')
       .select('id')
       .eq('player_name', player_name)
-      .eq('event_id', DEMO_EVENT_ID)
+      .eq('event_id', selectedEventId)
       .single();
 
     if (existing) {
@@ -41,15 +71,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate delta and score
-    const delta_ms = Math.abs(guessed_time_ms - EVENT_TIME_MS);
+    const delta_ms = Math.abs(guessed_time_ms - selectedEvent.event_time_ms);
     const score = calculateScore(delta_ms);
 
     // Insert submission
     const { data, error } = await supabase
       .from('submissions')
       .insert({
-        game_id: DEMO_GAME_ID,
-        event_id: DEMO_EVENT_ID,
+        game_id: selectedEvent.game_id,
+        event_id: selectedEventId,
         player_name,
         guessed_time_ms,
         delta_ms,

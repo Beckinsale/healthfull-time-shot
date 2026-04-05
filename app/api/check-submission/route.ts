@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-const DEMO_EVENT_ID = '00000000-0000-0000-0000-000000000002';
+const DEFAULT_EVENT_ID = '00000000-0000-0000-0000-000000000002';
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const player_name = searchParams.get('player_name');
+    const event_id = searchParams.get('event_id') || DEFAULT_EVENT_ID;
 
     if (!player_name) {
       return NextResponse.json(
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
       .from('submissions')
       .select('guessed_time_ms, delta_ms, score')
       .eq('player_name', player_name)
-      .eq('event_id', DEMO_EVENT_ID)
+      .eq('event_id', event_id)
       .single();
 
     if (error) {

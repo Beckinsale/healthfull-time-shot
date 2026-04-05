@@ -1,14 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-const DEMO_EVENT_ID = '00000000-0000-0000-0000-000000000002';
+const DEFAULT_EVENT_ID = '00000000-0000-0000-0000-000000000002';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const eventId = request.nextUrl.searchParams.get('event_id') || DEFAULT_EVENT_ID;
+
     const { data, error } = await supabase
       .from('submissions')
       .select('player_name, score, delta_ms, created_at')
-      .eq('event_id', DEMO_EVENT_ID)
+      .eq('event_id', eventId)
       .order('score', { ascending: false })
       .order('delta_ms', { ascending: true })
       .limit(10);

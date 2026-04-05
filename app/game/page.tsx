@@ -1,8 +1,41 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-const EVENT_TIME_MS = 3000; // 3 seconds - goal moment in football video
+type EventConfig = {
+  id: string;
+  label: string;
+  eventTimeMs: number;
+};
+
+type GameMode = "football" | "cs2";
+
+const GAMES: Record<
+  GameMode,
+  {
+    title: string;
+    videoSrc: string;
+    buttonLabel: string;
+    events: EventConfig[];
+  }
+> = {
+  football: {
+    title: "Футбол",
+    videoSrc: "/demo.mp4",
+    buttonLabel: "Угадать гол",
+    events: [{ id: "00000000-0000-0000-0000-000000000002", label: "Гол", eventTimeMs: 3000 }],
+  },
+  cs2: {
+    title: "CS2",
+    videoSrc: "/demo2.mp4",
+    buttonLabel: "Угадать headshot",
+    events: [
+      { id: "00000000-0000-0000-0000-000000000003", label: "Headshot 1", eventTimeMs: 900 },
+      { id: "00000000-0000-0000-0000-000000000004", label: "Headshot 2", eventTimeMs: 3000 },
+      { id: "00000000-0000-0000-0000-000000000005", label: "Headshot 3", eventTimeMs: 7000 },
+    ],
+  },
+};
 
 function calculateScore(deltaMs: number): number {
   if (deltaMs <= 300) return 100;
@@ -14,6 +47,10 @@ function calculateScore(deltaMs: number): number {
 
 export default function GamePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [mode, setMode] = useState<GameMode>("football");
+  const [selectedEventId, setSelectedEventId] = useState(GAMES.football.events[0].id);
+
   const [playerName, setPlayerName] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
   const [hasGuessed, setHasGuessed] = useState(false);
@@ -23,32 +60,43 @@ export default function GamePage() {
   const [videoError, setVideoError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [leaderboard, setLeaderboard] = useState<Array<{
-    rank: number;
-    name: string;
-    score: number;
-    delta: number;
-  }>>([]);
+  const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; name: string; score: number; delta: number }>>([]);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
 
-  const fetchLeaderboard = async () => {
+  const selectedGame = useMemo(() => GAMES[mode], [mode]);
+  const selectedEvent = useMemo(
+    () => selectedGame.events.find((event) => event.id === selectedEventId) ?? selectedGame.events[0],
+    [selectedGame, selectedEventId]
+  );
+
+  const resetRound = () => {
+    setHasGuessed(false);
+    setGuessedTimeMs(null);
+    setDeltaMs(null);
+    setScore(null);
+    setSubmitError(null);
+  };
+
+  const fetchLeaderboard = async (eventId: string) => {
     try {
       setIsLoadingLeaderboard(true);
-      const response = await fetch('/api/leaderboard');
+      const response = await fetch(`/api/leaderboard?event_id=${encodeURIComponent(eventId)}`);
       if (response.ok) {
         const data = await response.json();
         setLeaderboard(data.leaderboard || []);
       }
     } catch (error) {
-      console.error('Не удалось загрузить таблицу лидеров:', error);
+      console.error("Не удалось загрузить таблицу лидеров:", error);
     } finally {
       setIsLoadingLeaderboard(false);
     }
   };
 
-  const checkExistingSubmission = async (name: string) => {
+  const checkExistingSubmission = async (name: string, eventId: string) => {
     try {
-      const response = await fetch(`/api/check-submission?player_name=${encodeURIComponent(name)}`);
+      const response = await fetch(
+        `/api/check-submission?player_name=${encodeURIComponent(name)}&event_id=${encodeURIComponent(eventId)}`
+      );
       if (response.ok) {
         const data = await response.json();
         if (data.has_submitted && data.submission) {
@@ -56,11 +104,13 @@ export default function GamePage() {
           setDeltaMs(data.submission.delta_ms);
           setScore(data.submission.score);
           setHasGuessed(true);
-          localStorage.setItem('hasSubmitted', 'true');
+          return;
         }
       }
+
+      resetRound();
     } catch (error) {
-      console.error('Не удалось проверить отправку:', error);
+      console.error("Не удалось проверить отправку:", error);
     }
   };
 
@@ -69,67 +119,78 @@ export default function GamePage() {
     if (savedName) {
       setPlayerName(savedName);
       setIsNameSet(true);
-      checkExistingSubmission(savedName);
     }
-
-    fetchLeaderboard();
   }, []);
+
+  useEffect(() => {
+    fetchLeaderboard(selectedEvent.id);
+    if (isNameSet && playerName) {
+      checkExistingSubmission(playerName, selectedEvent.id);
+    }
+    setVideoError(false);
+  }, [selectedEvent.id, isNameSet, playerName]);
 
   const handleNameSubmit = () => {
     if (playerName.trim()) {
       setIsNameSet(true);
-      localStorage.setItem("playerName", playerName);
+      localStorage.setItem("playerName", playerName.trim());
+      setPlayerName(playerName.trim());
     }
   };
 
   const handleGuess = async () => {
-    if (videoRef.current && !isSubmitting) {
-      setIsSubmitting(true);
-      setSubmitError(null);
+    if (!videoRef.current || isSubmitting || hasGuessed) return;
 
-      const currentTimeSeconds = videoRef.current.currentTime;
-      const timeMs = Math.round(currentTimeSeconds * 1000);
-      const delta = Math.abs(timeMs - EVENT_TIME_MS);
-      const calculatedScore = calculateScore(delta);
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-      // Set local state immediately for instant feedback
-      setGuessedTimeMs(timeMs);
-      setDeltaMs(delta);
-      setScore(calculatedScore);
-      setHasGuessed(true);
+    const timeMs = Math.round(videoRef.current.currentTime * 1000);
+    const delta = Math.abs(timeMs - selectedEvent.eventTimeMs);
+    const calculatedScore = calculateScore(delta);
 
-      // Save to localStorage
-      localStorage.setItem('hasSubmitted', 'true');
+    setGuessedTimeMs(timeMs);
+    setDeltaMs(delta);
+    setScore(calculatedScore);
+    setHasGuessed(true);
 
-      // Submit to API
-      try {
-        const response = await fetch('/api/submissions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            player_name: playerName,
-            guessed_time_ms: timeMs,
-          }),
-        });
+    try {
+      const response = await fetch("/api/submissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player_name: playerName,
+          guessed_time_ms: timeMs,
+          event_id: selectedEvent.id,
+        }),
+      });
 
-        if (!response.ok) {
-          const data = await response.json();
-          if (response.status === 409) {
-            setSubmitError('Вы уже отправляли результат для этого события');
-          } else {
-            setSubmitError(data.error || 'Не удалось сохранить результат');
-          }
-        } else {
-          // Refresh leaderboard after successful submission
-          fetchLeaderboard();
-        }
-      } catch (error) {
-        console.error('Ошибка отправки:', error);
-        setSubmitError('Ошибка сети. Очки рассчитаны, но результат не сохранен.');
-      } finally {
-        setIsSubmitting(false);
+      if (!response.ok) {
+        const data = await response.json();
+        setSubmitError(data.error || "Не удалось сохранить результат");
+      } else {
+        fetchLeaderboard(selectedEvent.id);
       }
+    } catch (error) {
+      console.error("Ошибка отправки:", error);
+      setSubmitError("Ошибка сети. Очки рассчитаны, но результат не сохранен.");
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleModeChange = (nextMode: GameMode) => {
+    setMode(nextMode);
+    setSelectedEventId(GAMES[nextMode].events[0].id);
+    resetRound();
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.pause();
+    }
+  };
+
+  const handleChangeName = () => {
+    setIsNameSet(false);
+    resetRound();
   };
 
   if (!isNameSet) {
@@ -157,23 +218,11 @@ export default function GamePage() {
     );
   }
 
-  const handleChangeName = () => {
-    setIsNameSet(false);
-    setHasGuessed(false);
-    setGuessedTimeMs(null);
-    setDeltaMs(null);
-    setScore(null);
-    setSubmitError(null);
-    localStorage.removeItem('hasSubmitted');
-  };
-
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 p-8">
       <div className="w-full max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-zinc-900">
-            Игра на точность тайминга - {playerName}
-          </h1>
+          <h1 className="text-3xl font-bold text-zinc-900">Игра на точность тайминга - {playerName}</h1>
           <button
             onClick={handleChangeName}
             className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -182,18 +231,50 @@ export default function GamePage() {
           </button>
         </div>
 
+        <div className="mb-6 flex gap-3">
+          <button
+            onClick={() => handleModeChange("football")}
+            className={`px-4 py-2 rounded-lg border ${
+              mode === "football" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-zinc-700 border-zinc-300"
+            }`}
+          >
+            Футбол
+          </button>
+          <button
+            onClick={() => handleModeChange("cs2")}
+            className={`px-4 py-2 rounded-lg border ${
+              mode === "cs2" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-zinc-700 border-zinc-300"
+            }`}
+          >
+            CS2
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main game area */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Video player */}
+            {selectedGame.events.length > 1 && (
+              <div className="bg-white rounded-lg shadow-lg p-4">
+                <label className="block text-sm text-zinc-600 mb-2">Выберите событие</label>
+                <select
+                  value={selectedEvent.id}
+                  onChange={(e) => setSelectedEventId(e.target.value)}
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg"
+                >
+                  {selectedGame.events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.label} ({(event.eventTimeMs / 1000).toFixed(2)}s)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="bg-white rounded-lg shadow-lg p-4">
               {videoError ? (
                 <div className="aspect-video bg-zinc-900 rounded flex flex-col items-center justify-center p-8">
-                  <p className="text-white text-lg mb-4 text-center">
-                    Видеофайл не найден
-                  </p>
+                  <p className="text-white text-lg mb-4 text-center">Видеофайл не найден</p>
                   <p className="text-zinc-400 text-sm text-center">
-                    Добавьте файл demo.mp4 в папку /public
+                    Добавьте файл {selectedGame.videoSrc.replace("/", "")} в папку /public
                   </p>
                 </div>
               ) : (
@@ -203,48 +284,46 @@ export default function GamePage() {
                   controls
                   onError={() => setVideoError(true)}
                 >
-                  <source src="/demo.mp4" type="video/mp4" />
+                  <source src={selectedGame.videoSrc} type="video/mp4" />
                   Ваш браузер не поддерживает тег video.
                 </video>
               )}
             </div>
 
-            {/* Guess button */}
             <div className="flex justify-center">
               <button
                 onClick={handleGuess}
                 disabled={hasGuessed || isSubmitting}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Отправка..." : hasGuessed ? "Уже отправлено" : "Угадать сейчас!"}
+                {isSubmitting ? "Отправка..." : hasGuessed ? "Уже отправлено" : selectedGame.buttonLabel}
               </button>
             </div>
 
-            {/* Result display */}
             {hasGuessed && guessedTimeMs !== null && deltaMs !== null && score !== null && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
                 <div className="space-y-3">
                   <div>
+                    <p className="text-sm text-zinc-500">Событие</p>
+                    <p className="text-lg text-zinc-900">{selectedEvent.label}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-zinc-500">Время события</p>
                     <p className="text-lg text-zinc-900">
-                      {(EVENT_TIME_MS / 1000).toFixed(2)}s ({EVENT_TIME_MS}ms)
+                      {(selectedEvent.eventTimeMs / 1000).toFixed(2)}s ({selectedEvent.eventTimeMs}ms)
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-zinc-500">Ваше время</p>
-                    <p className="text-lg text-zinc-900">
-                      {(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)
-                    </p>
+                    <p className="text-lg text-zinc-900">{(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)</p>
                   </div>
                   <div>
                     <p className="text-sm text-zinc-500">Разница</p>
                     <p className="text-lg font-semibold text-zinc-900">{deltaMs}ms</p>
                   </div>
                   <div className="pt-2 border-t border-zinc-200">
-                    <p className="text-3xl font-bold" style={{
-                      color: score >= 70 ? '#22c55e' : score >= 40 ? '#eab308' : '#ef4444'
-                    }}>
+                    <p className="text-3xl font-bold" style={{ color: score >= 70 ? "#22c55e" : score >= 40 ? "#eab308" : "#ef4444" }}>
                       Очки: {score}
                     </p>
                   </div>
@@ -252,7 +331,6 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Error display */}
             {submitError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <p className="text-red-800 text-sm">{submitError}</p>
@@ -260,27 +338,21 @@ export default function GamePage() {
             )}
           </div>
 
-          {/* Leaderboard */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8">
-              <h2 className="text-xl font-bold text-zinc-900 mb-4">Таблица лидеров</h2>
+              <h2 className="text-xl font-bold text-zinc-900 mb-1">Таблица лидеров</h2>
+              <p className="text-sm text-zinc-500 mb-4">{selectedGame.title} - {selectedEvent.label}</p>
+
               {isLoadingLeaderboard ? (
                 <div className="text-center py-8 text-zinc-500">Загрузка...</div>
               ) : leaderboard.length === 0 ? (
-                <div className="text-center py-8 text-zinc-500">
-                  Пока нет результатов. Будьте первым!
-                </div>
+                <div className="text-center py-8 text-zinc-500">Пока нет результатов. Будьте первым!</div>
               ) : (
                 <div className="space-y-3">
                   {leaderboard.map((entry) => (
-                    <div
-                      key={entry.rank}
-                      className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
-                    >
+                    <div key={entry.rank} className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <span className="font-bold text-lg text-zinc-900">
-                          #{entry.rank}
-                        </span>
+                        <span className="font-bold text-lg text-zinc-900">#{entry.rank}</span>
                         <span className="text-zinc-700">{entry.name}</span>
                       </div>
                       <div className="text-right">
