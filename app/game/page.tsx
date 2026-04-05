@@ -21,6 +21,8 @@ export default function GamePage() {
   const [deltaMs, setDeltaMs] = useState<number | null>(null);
   const [score, setScore] = useState<number | null>(null);
   const [videoError, setVideoError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const mockLeaderboard = [
     { rank: 1, name: "Player1", score: 100, delta: 150 },
@@ -34,6 +36,11 @@ export default function GamePage() {
       setPlayerName(savedName);
       setIsNameSet(true);
     }
+
+    const hasSubmitted = localStorage.getItem('hasSubmitted');
+    if (hasSubmitted === 'true') {
+      setHasGuessed(true);
+    }
   }, []);
 
   const handleNameSubmit = () => {
@@ -43,17 +50,50 @@ export default function GamePage() {
     }
   };
 
-  const handleGuess = () => {
-    if (videoRef.current) {
+  const handleGuess = async () => {
+    if (videoRef.current && !isSubmitting) {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
       const currentTimeSeconds = videoRef.current.currentTime;
       const timeMs = Math.round(currentTimeSeconds * 1000);
       const delta = Math.abs(timeMs - EVENT_TIME_MS);
       const calculatedScore = calculateScore(delta);
 
+      // Set local state immediately for instant feedback
       setGuessedTimeMs(timeMs);
       setDeltaMs(delta);
       setScore(calculatedScore);
       setHasGuessed(true);
+
+      // Save to localStorage
+      localStorage.setItem('hasSubmitted', 'true');
+
+      // Submit to API
+      try {
+        const response = await fetch('/api/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            player_name: playerName,
+            guessed_time_ms: timeMs,
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          if (response.status === 409) {
+            setSubmitError('You have already submitted for this event');
+          } else {
+            setSubmitError(data.error || 'Failed to save submission');
+          }
+        }
+      } catch (error) {
+        console.error('Submit error:', error);
+        setSubmitError('Network error. Your score was calculated but not saved.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -120,10 +160,10 @@ export default function GamePage() {
             <div className="flex justify-center">
               <button
                 onClick={handleGuess}
-                disabled={hasGuessed}
+                disabled={hasGuessed || isSubmitting}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
-                {hasGuessed ? "Already Guessed" : "Guess Now!"}
+                {isSubmitting ? "Submitting..." : hasGuessed ? "Already Guessed" : "Guess Now!"}
               </button>
             </div>
 
@@ -156,6 +196,13 @@ export default function GamePage() {
                     </p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Error display */}
+            {submitError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-800 text-sm">{submitError}</p>
               </div>
             )}
           </div>
