@@ -60,6 +60,14 @@ function calculateScore(deltaMs: number): number {
   return 0;
 }
 
+function getEventDisplayLabel(mode: GameMode, eventNumber: number): string {
+  if (mode === "football") {
+    return `Событие ${eventNumber} гол`;
+  }
+
+  return `Событие ${eventNumber} headshot`;
+}
+
 export default function GamePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -435,7 +443,7 @@ export default function GamePage() {
                       <div className="space-y-2">
                         {resultHistory.map((item) => (
                           <div key={item.eventId} className="flex items-center justify-between text-sm text-zinc-700">
-                            <span>Событие {item.eventNumber}</span>
+                            <span>{getEventDisplayLabel(mode, item.eventNumber)}</span>
                             <span>{item.deltaMs}ms (очки: {item.score})</span>
                           </div>
                         ))}
