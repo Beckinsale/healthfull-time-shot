@@ -2,12 +2,24 @@
 
 import { useState, useRef, useEffect } from "react";
 
+const EVENT_TIME_MS = 14500;
+
+function calculateScore(deltaMs: number): number {
+  if (deltaMs <= 300) return 100;
+  if (deltaMs <= 1000) return 70;
+  if (deltaMs <= 2000) return 40;
+  if (deltaMs <= 5000) return 10;
+  return 0;
+}
+
 export default function GamePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playerName, setPlayerName] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
   const [hasGuessed, setHasGuessed] = useState(false);
   const [guessedTimeMs, setGuessedTimeMs] = useState<number | null>(null);
+  const [deltaMs, setDeltaMs] = useState<number | null>(null);
+  const [score, setScore] = useState<number | null>(null);
   const [videoError, setVideoError] = useState(false);
 
   const mockLeaderboard = [
@@ -35,7 +47,12 @@ export default function GamePage() {
     if (videoRef.current) {
       const currentTimeSeconds = videoRef.current.currentTime;
       const timeMs = Math.round(currentTimeSeconds * 1000);
+      const delta = Math.abs(timeMs - EVENT_TIME_MS);
+      const calculatedScore = calculateScore(delta);
+
       setGuessedTimeMs(timeMs);
+      setDeltaMs(delta);
+      setScore(calculatedScore);
       setHasGuessed(true);
     }
   };
@@ -111,20 +128,33 @@ export default function GamePage() {
             </div>
 
             {/* Result display */}
-            {hasGuessed && guessedTimeMs !== null && (
+            {hasGuessed && guessedTimeMs !== null && deltaMs !== null && score !== null && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h2 className="text-xl font-bold text-zinc-900 mb-4">Your Result</h2>
-                <div className="space-y-2">
-                  <p className="text-zinc-700">
-                    <span className="font-semibold">Guessed Time:</span>{" "}
-                    {(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)
-                  </p>
-                  <p className="text-zinc-700">
-                    <span className="font-semibold">Delta:</span> (will calculate in Phase 4)
-                  </p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    Score: (will calculate in Phase 4)
-                  </p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-zinc-500">Event Time</p>
+                    <p className="text-lg text-zinc-900">
+                      {(EVENT_TIME_MS / 1000).toFixed(2)}s ({EVENT_TIME_MS}ms)
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-500">Your Guess</p>
+                    <p className="text-lg text-zinc-900">
+                      {(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-500">Delta</p>
+                    <p className="text-lg font-semibold text-zinc-900">{deltaMs}ms</p>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-200">
+                    <p className="text-3xl font-bold" style={{
+                      color: score >= 70 ? '#22c55e' : score >= 40 ? '#eab308' : '#ef4444'
+                    }}>
+                      Score: {score}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
