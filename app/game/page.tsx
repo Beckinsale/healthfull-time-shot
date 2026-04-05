@@ -601,7 +601,9 @@ export default function GamePage() {
 
                   {playerRow && !leaderboard.some((entry) => entry.name === playerRow.name) && (
                     <>
-                      <div className="text-center text-zinc-400">...</div>
+                      {leaderboard.length > 0 && playerRow.rank > leaderboard[leaderboard.length - 1].rank + 1 && (
+                        <div className="text-center text-zinc-400">...</div>
+                      )}
                       <div className="flex items-center justify-between p-3 rounded-lg bg-amber-100 border border-amber-300">
                         <div className="flex items-center gap-3">
                           <span className="font-bold text-lg text-zinc-900">#{playerRow.rank}</span>
