@@ -15,6 +15,8 @@ type SubmissionData = {
 
 type GameMode = "football" | "cs2";
 
+const EVENT_GRACE_MS = 400;
+
 const GAMES: Record<
   GameMode,
   {
@@ -59,7 +61,6 @@ export default function GamePage() {
   const [playerName, setPlayerName] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
   const [hasGuessed, setHasGuessed] = useState(false);
-  const [isWaitingForEvent, setIsWaitingForEvent] = useState(false);
   const [guessedTimeMs, setGuessedTimeMs] = useState<number | null>(null);
   const [deltaMs, setDeltaMs] = useState<number | null>(null);
   const [score, setScore] = useState<number | null>(null);
@@ -72,9 +73,21 @@ export default function GamePage() {
   const selectedGame = useMemo(() => GAMES[mode], [mode]);
   const currentEvent = selectedGame.events[currentEventIndex] ?? null;
 
+  const resolveCurrentEventIndex = (timeMs: number, startIndex: number) => {
+    let nextIndex = startIndex;
+
+    while (
+      nextIndex < selectedGame.events.length &&
+      timeMs > selectedGame.events[nextIndex].eventTimeMs + EVENT_GRACE_MS
+    ) {
+      nextIndex += 1;
+    }
+
+    return nextIndex;
+  };
+
   const resetRound = () => {
     setHasGuessed(false);
-    setIsWaitingForEvent(false);
     setGuessedTimeMs(null);
     setDeltaMs(null);
     setScore(null);
@@ -120,7 +133,6 @@ export default function GamePage() {
       if (!submission) {
         setCurrentEventIndex(i);
         setHasGuessed(false);
-        setIsWaitingForEvent(false);
         setSubmitError(null);
 
         if (lastSubmission) {
@@ -140,7 +152,6 @@ export default function GamePage() {
 
     setCurrentEventIndex(events.length);
     setHasGuessed(false);
-    setIsWaitingForEvent(false);
     setSubmitError(null);
 
     if (lastSubmission) {
@@ -175,20 +186,22 @@ export default function GamePage() {
   }, [currentEvent?.id]);
 
   useEffect(() => {
-    if (!isWaitingForEvent || !currentEvent || !videoRef.current) return;
+    if (!videoRef.current || currentEvent === null) return;
 
     const timer = window.setInterval(() => {
       if (!videoRef.current) return;
+
       const nowMs = Math.round(videoRef.current.currentTime * 1000);
-      if (nowMs >= currentEvent.eventTimeMs) {
-        setIsWaitingForEvent(false);
+      const nextIndex = resolveCurrentEventIndex(nowMs, currentEventIndex);
+
+      if (nextIndex !== currentEventIndex) {
+        setCurrentEventIndex(nextIndex);
         setHasGuessed(false);
-        setCurrentEventIndex((prev) => prev + 1);
       }
     }, 150);
 
     return () => window.clearInterval(timer);
-  }, [isWaitingForEvent, currentEvent]);
+  }, [currentEvent, currentEventIndex, selectedGame.events.length]);
 
   const handleNameSubmit = () => {
     if (playerName.trim()) {
@@ -200,13 +213,24 @@ export default function GamePage() {
   };
 
   const handleGuess = async () => {
-    if (!videoRef.current || isSubmitting || hasGuessed || !currentEvent) return;
+    if (!videoRef.current || isSubmitting || !currentEvent) return;
+
+    const nowMs = Math.round(videoRef.current.currentTime * 1000);
+    const resolvedIndex = resolveCurrentEventIndex(nowMs, currentEventIndex);
+
+    if (resolvedIndex !== currentEventIndex) {
+      setCurrentEventIndex(resolvedIndex);
+      setHasGuessed(false);
+    }
+
+    const targetEvent = selectedGame.events[resolvedIndex] ?? null;
+    if (!targetEvent || hasGuessed) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const timeMs = Math.round(videoRef.current.currentTime * 1000);
-    const delta = Math.abs(timeMs - currentEvent.eventTimeMs);
+    const timeMs = nowMs;
+    const delta = Math.abs(timeMs - targetEvent.eventTimeMs);
     const calculatedScore = calculateScore(delta);
 
     setGuessedTimeMs(timeMs);
@@ -221,7 +245,7 @@ export default function GamePage() {
         body: JSON.stringify({
           player_name: playerName,
           guessed_time_ms: timeMs,
-          event_id: currentEvent.id,
+          event_id: targetEvent.id,
         }),
       });
 
@@ -229,17 +253,13 @@ export default function GamePage() {
         const data = await response.json();
         setSubmitError(data.error || "Не удалось сохранить результат");
       } else {
-        fetchLeaderboard(currentEvent.id);
+        fetchLeaderboard(targetEvent.id);
       }
     } catch (error) {
       console.error("Ошибка отправки:", error);
       setSubmitError("Ошибка сети. Очки рассчитаны, но результат не сохранен.");
     } finally {
       setIsSubmitting(false);
-    }
-
-    if (mode === "cs2" && currentEventIndex < selectedGame.events.length - 1) {
-      setIsWaitingForEvent(true);
     }
   };
 
@@ -343,16 +363,14 @@ export default function GamePage() {
             <div className="flex justify-center">
               <button
                 onClick={handleGuess}
-                disabled={hasGuessed || isSubmitting || currentEvent === null || isWaitingForEvent}
+                disabled={hasGuessed || isSubmitting || currentEvent === null}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
                 {isSubmitting
                   ? "Отправка..."
                   : currentEvent === null
                     ? "Все события пройдены"
-                    : isWaitingForEvent
-                      ? "Ожидание события..."
-                      : selectedGame.buttonLabel}
+                    : selectedGame.buttonLabel}
               </button>
             </div>
 
@@ -369,7 +387,10 @@ export default function GamePage() {
                     <p className="text-lg font-semibold text-zinc-900">{deltaMs}ms</p>
                   </div>
                   <div className="pt-2 border-t border-zinc-200">
-                    <p className="text-3xl font-bold" style={{ color: score >= 70 ? "#22c55e" : score >= 40 ? "#eab308" : "#ef4444" }}>
+                    <p
+                      className="text-3xl font-bold"
+                      style={{ color: score >= 70 ? "#22c55e" : score >= 40 ? "#eab308" : "#ef4444" }}
+                    >
                       Очки: {score}
                     </p>
                   </div>
