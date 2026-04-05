@@ -1,17 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export default function GamePage() {
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [playerName, setPlayerName] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
   const [hasGuessed, setHasGuessed] = useState(false);
+  const [guessedTimeMs, setGuessedTimeMs] = useState<number | null>(null);
+  const [videoError, setVideoError] = useState(false);
 
   const mockLeaderboard = [
     { rank: 1, name: "Player1", score: 100, delta: 150 },
     { rank: 2, name: "Player2", score: 70, delta: 800 },
     { rank: 3, name: "Player3", score: 40, delta: 1500 },
   ];
+
+  useEffect(() => {
+    const savedName = localStorage.getItem("playerName");
+    if (savedName) {
+      setPlayerName(savedName);
+      setIsNameSet(true);
+    }
+  }, []);
 
   const handleNameSubmit = () => {
     if (playerName.trim()) {
@@ -21,7 +32,12 @@ export default function GamePage() {
   };
 
   const handleGuess = () => {
-    setHasGuessed(true);
+    if (videoRef.current) {
+      const currentTimeSeconds = videoRef.current.currentTime;
+      const timeMs = Math.round(currentTimeSeconds * 1000);
+      setGuessedTimeMs(timeMs);
+      setHasGuessed(true);
+    }
   };
 
   if (!isNameSet) {
@@ -61,9 +77,26 @@ export default function GamePage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Video player */}
             <div className="bg-white rounded-lg shadow-lg p-4">
-              <div className="aspect-video bg-zinc-900 rounded flex items-center justify-center">
-                <p className="text-white text-lg">Video Player (placeholder)</p>
-              </div>
+              {videoError ? (
+                <div className="aspect-video bg-zinc-900 rounded flex flex-col items-center justify-center p-8">
+                  <p className="text-white text-lg mb-4 text-center">
+                    Video file not found
+                  </p>
+                  <p className="text-zinc-400 text-sm text-center">
+                    Please add demo.mp4 to the /public directory
+                  </p>
+                </div>
+              ) : (
+                <video
+                  ref={videoRef}
+                  className="w-full aspect-video bg-black rounded"
+                  controls
+                  onError={() => setVideoError(true)}
+                >
+                  <source src="/demo.mp4" type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              )}
             </div>
 
             {/* Guess button */}
@@ -78,17 +111,20 @@ export default function GamePage() {
             </div>
 
             {/* Result display */}
-            {hasGuessed && (
+            {hasGuessed && guessedTimeMs !== null && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h2 className="text-xl font-bold text-zinc-900 mb-4">Your Result</h2>
                 <div className="space-y-2">
                   <p className="text-zinc-700">
-                    <span className="font-semibold">Guessed Time:</span> 14.8s
+                    <span className="font-semibold">Guessed Time:</span>{" "}
+                    {(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)
                   </p>
                   <p className="text-zinc-700">
-                    <span className="font-semibold">Delta:</span> 300ms
+                    <span className="font-semibold">Delta:</span> (will calculate in Phase 4)
                   </p>
-                  <p className="text-2xl font-bold text-green-600">Score: 100</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    Score: (will calculate in Phase 4)
+                  </p>
                 </div>
               </div>
             )}
