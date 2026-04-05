@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 
 const DEMO_GAME_ID = '00000000-0000-0000-0000-000000000001';
 const DEMO_EVENT_ID = '00000000-0000-0000-0000-000000000002';
-const EVENT_TIME_MS = 10000; // 10 seconds - adjusted for demo video
+const EVENT_TIME_MS = 3000; // 3 seconds - goal moment in football video
 
 function calculateScore(deltaMs: number): number {
   if (deltaMs <= 300) return 100;
