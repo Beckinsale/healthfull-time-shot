@@ -524,9 +524,9 @@ export default function GamePage() {
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
                 <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-zinc-500">Суммарные очки</p>
-                    <p className="text-xl font-semibold text-zinc-900">{totalScore}</p>
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+                    <p className="text-xs uppercase tracking-wide text-amber-700">Суммарные очки</p>
+                    <p className="text-3xl font-extrabold text-amber-900">{totalScore}</p>
                   </div>
                   <div>
                     <p className="text-sm text-zinc-500">Ваше время</p>
