@@ -16,7 +16,7 @@ export async function GET() {
     if (error) {
       console.error('Supabase error:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch leaderboard' },
+        { error: 'Не удалось загрузить таблицу лидеров' },
         { status: 500 }
       );
     }
@@ -32,7 +32,7 @@ export async function GET() {
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Внутренняя ошибка сервера' },
       { status: 500 }
     );
   }

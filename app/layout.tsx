@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Event Timing Game",
-  description: "Test your reaction timing in this event prediction game",
+  title: "Игра на точность тайминга",
+  description: "Проверьте реакцию, угадывая момент события в видео",
 };
 
 export default function RootLayout({
@@ -23,10 +23,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+      <html
+        lang="ru"
+        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

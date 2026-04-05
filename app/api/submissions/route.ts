@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     if (!player_name || typeof guessed_time_ms !== 'number') {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Отсутствуют обязательные поля' },
         { status: 400 }
       );
     }
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       return NextResponse.json(
-        { error: 'Already submitted' },
+        { error: 'Результат уже отправлен' },
         { status: 409 }
       );
     }
@@ -59,9 +59,16 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json(
+          { error: 'Результат уже отправлен' },
+          { status: 409 }
+        );
+      }
+
       console.error('Supabase error:', error);
       return NextResponse.json(
-        { error: 'Failed to save submission' },
+        { error: 'Не удалось сохранить результат' },
         { status: 500 }
       );
     }
@@ -73,7 +80,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Внутренняя ошибка сервера' },
       { status: 500 }
     );
   }

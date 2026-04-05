@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
     if (!player_name) {
       return NextResponse.json(
-        { error: 'Missing player_name parameter' },
+        { error: 'Отсутствует параметр player_name' },
         { status: 400 }
       );
     }
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Внутренняя ошибка сервера' },
       { status: 500 }
     );
   }

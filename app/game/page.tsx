@@ -40,7 +40,7 @@ export default function GamePage() {
         setLeaderboard(data.leaderboard || []);
       }
     } catch (error) {
-      console.error('Failed to fetch leaderboard:', error);
+      console.error('Не удалось загрузить таблицу лидеров:', error);
     } finally {
       setIsLoadingLeaderboard(false);
     }
@@ -60,7 +60,7 @@ export default function GamePage() {
         }
       }
     } catch (error) {
-      console.error('Failed to check submission:', error);
+      console.error('Не удалось проверить отправку:', error);
     }
   };
 
@@ -115,17 +115,17 @@ export default function GamePage() {
         if (!response.ok) {
           const data = await response.json();
           if (response.status === 409) {
-            setSubmitError('You have already submitted for this event');
+            setSubmitError('Вы уже отправляли результат для этого события');
           } else {
-            setSubmitError(data.error || 'Failed to save submission');
+            setSubmitError(data.error || 'Не удалось сохранить результат');
           }
         } else {
           // Refresh leaderboard after successful submission
           fetchLeaderboard();
         }
       } catch (error) {
-        console.error('Submit error:', error);
-        setSubmitError('Network error. Your score was calculated but not saved.');
+        console.error('Ошибка отправки:', error);
+        setSubmitError('Ошибка сети. Очки рассчитаны, но результат не сохранен.');
       } finally {
         setIsSubmitting(false);
       }
@@ -136,12 +136,12 @@ export default function GamePage() {
     return (
       <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 p-8">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
-          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Enter Your Name</h2>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Введите имя</h2>
           <input
             type="text"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="Your name"
+            placeholder="Ваше имя"
             className="w-full px-4 py-2 border border-zinc-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
             onKeyDown={(e) => e.key === "Enter" && handleNameSubmit()}
           />
@@ -150,7 +150,7 @@ export default function GamePage() {
             disabled={!playerName.trim()}
             className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-zinc-300 disabled:cursor-not-allowed"
           >
-            Start
+            Начать
           </button>
         </div>
       </div>
@@ -172,13 +172,13 @@ export default function GamePage() {
       <div className="w-full max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-zinc-900">
-            Event Timing Game - {playerName}
+            Игра на точность тайминга - {playerName}
           </h1>
           <button
             onClick={handleChangeName}
             className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
           >
-            Change Name
+            Сменить имя
           </button>
         </div>
 
@@ -190,10 +190,10 @@ export default function GamePage() {
               {videoError ? (
                 <div className="aspect-video bg-zinc-900 rounded flex flex-col items-center justify-center p-8">
                   <p className="text-white text-lg mb-4 text-center">
-                    Video file not found
+                    Видеофайл не найден
                   </p>
                   <p className="text-zinc-400 text-sm text-center">
-                    Please add demo.mp4 to the /public directory
+                    Добавьте файл demo.mp4 в папку /public
                   </p>
                 </div>
               ) : (
@@ -204,7 +204,7 @@ export default function GamePage() {
                   onError={() => setVideoError(true)}
                 >
                   <source src="/demo.mp4" type="video/mp4" />
-                  Your browser does not support the video tag.
+                  Ваш браузер не поддерживает тег video.
                 </video>
               )}
             </div>
@@ -216,36 +216,36 @@ export default function GamePage() {
                 disabled={hasGuessed || isSubmitting}
                 className="px-8 py-4 bg-green-600 text-white text-xl font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Submitting..." : hasGuessed ? "Already Guessed" : "Guess Now!"}
+                {isSubmitting ? "Отправка..." : hasGuessed ? "Уже отправлено" : "Угадать сейчас!"}
               </button>
             </div>
 
             {/* Result display */}
             {hasGuessed && guessedTimeMs !== null && deltaMs !== null && score !== null && (
               <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-bold text-zinc-900 mb-4">Your Result</h2>
+                <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm text-zinc-500">Event Time</p>
+                    <p className="text-sm text-zinc-500">Время события</p>
                     <p className="text-lg text-zinc-900">
                       {(EVENT_TIME_MS / 1000).toFixed(2)}s ({EVENT_TIME_MS}ms)
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-zinc-500">Your Guess</p>
+                    <p className="text-sm text-zinc-500">Ваше время</p>
                     <p className="text-lg text-zinc-900">
                       {(guessedTimeMs / 1000).toFixed(2)}s ({guessedTimeMs}ms)
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-zinc-500">Delta</p>
+                    <p className="text-sm text-zinc-500">Разница</p>
                     <p className="text-lg font-semibold text-zinc-900">{deltaMs}ms</p>
                   </div>
                   <div className="pt-2 border-t border-zinc-200">
                     <p className="text-3xl font-bold" style={{
                       color: score >= 70 ? '#22c55e' : score >= 40 ? '#eab308' : '#ef4444'
                     }}>
-                      Score: {score}
+                      Очки: {score}
                     </p>
                   </div>
                 </div>
@@ -263,12 +263,12 @@ export default function GamePage() {
           {/* Leaderboard */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8">
-              <h2 className="text-xl font-bold text-zinc-900 mb-4">Leaderboard</h2>
+              <h2 className="text-xl font-bold text-zinc-900 mb-4">Таблица лидеров</h2>
               {isLoadingLeaderboard ? (
-                <div className="text-center py-8 text-zinc-500">Loading...</div>
+                <div className="text-center py-8 text-zinc-500">Загрузка...</div>
               ) : leaderboard.length === 0 ? (
                 <div className="text-center py-8 text-zinc-500">
-                  No submissions yet. Be the first!
+                  Пока нет результатов. Будьте первым!
                 </div>
               ) : (
                 <div className="space-y-3">
