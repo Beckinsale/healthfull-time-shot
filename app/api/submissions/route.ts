@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { calculateScoreForGame, type GameScoreMode } from '@/lib/scoring';
 
 type GuessType = 'goal' | 'kill' | 'headshot';
@@ -85,6 +85,14 @@ function isSupabaseNetworkError(error: unknown): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Хранилище временно недоступно. Повторите попытку через несколько секунд.' },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { player_name, guessed_time_ms, event_id, guess_type } = body;
     const selectedEventId = typeof event_id === 'string' ? event_id : DEFAULT_EVENT_ID;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 const GAME_ID_BY_MODE = {
   football: '00000000-0000-0000-0000-000000000001',
@@ -16,6 +16,11 @@ function isSupabaseNetworkError(error: unknown): boolean {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ submissions: [], unavailable: true }, { status: 503 });
+    }
+
     const playerName = request.nextUrl.searchParams.get('player_name');
     const modeParam = request.nextUrl.searchParams.get('mode');
     const mode: GameMode = modeParam === 'cs2' ? 'cs2' : 'football';

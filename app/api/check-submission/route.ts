@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 const DEFAULT_EVENT_ID = '00000000-0000-0000-0000-000000000002';
 
@@ -11,6 +11,11 @@ function isSupabaseNetworkError(error: unknown): boolean {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ has_submitted: false, unavailable: true }, { status: 503 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const player_name = searchParams.get('player_name');
     const event_id = searchParams.get('event_id') || DEFAULT_EVENT_ID;
