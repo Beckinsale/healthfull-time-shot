@@ -56,3 +56,22 @@ input:focus {
 .fade-in {
   animation: fadeIn 0.3s ease-out;
 }
+
+@keyframes maxHitBadge {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -65%) scale(1);
+  }
+}
+
+.max-hit-badge {
+  animation: maxHitBadge 1.25s ease-out forwards;
+}

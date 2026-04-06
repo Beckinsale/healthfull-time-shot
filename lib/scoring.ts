@@ -34,26 +34,26 @@ const SCORE_PROFILES: Record<GameScoreMode, ScoreProfile> = {
   },
   cs2: {
     early: [
-      { maxMs: 90, score: 100 },
-      { maxMs: 160, score: 45 },
-      { maxMs: 280, score: 18 },
-      { maxMs: 500, score: 6 },
-      { maxMs: 800, score: 2 },
+      { maxMs: 110, score: 100 },
+      { maxMs: 190, score: 55 },
+      { maxMs: 320, score: 28 },
+      { maxMs: 560, score: 12 },
+      { maxMs: 850, score: 4 },
     ],
     late: [
-      { maxMs: 90, score: 100 },
-      { maxMs: 160, score: 55 },
-      { maxMs: 280, score: 22 },
-      { maxMs: 500, score: 8 },
-      { maxMs: 800, score: 3 },
-      { maxMs: 1200, score: 1 },
+      { maxMs: 110, score: 100 },
+      { maxMs: 190, score: 62 },
+      { maxMs: 320, score: 32 },
+      { maxMs: 560, score: 14 },
+      { maxMs: 900, score: 6 },
+      { maxMs: 1300, score: 2 },
     ],
   },
 };
 
 export const EVENT_GRACE_MS_BY_GAME: Record<GameScoreMode, number> = {
-  football: 700,
-  cs2: 700,
+  football: 1000,
+  cs2: 1000,
 };
 
 export function calculateScoreForGame(gameMode: GameScoreMode, signedDiffMs: number): number {

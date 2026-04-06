@@ -1,110 +1,158 @@
-# Event Timing Game
+# Event Timing Game (MVP)
 
-A web-based MVP game where players watch a video and click a button to predict when an event occurs. The system calculates accuracy and maintains a leaderboard.
+Рабочий прототип игры на точность тайминга: пользователь смотрит видео и должен нажать кнопку максимально близко к моменту события.
 
-## Features
+Проект сделан как MVP без переусложнения архитектуры.
 
-- Video playback with HTML5 player
-- Real-time event timing capture
-- Scoring system based on accuracy (±300ms = 100 points)
-- Persistent leaderboard with Supabase
-- Duplicate submission prevention
-- Responsive design
+## Что реализовано
 
-## Tech Stack
+- 2 игровых режима: `Футбол` и `CS2`.
+- Сценарий с несколькими событиями в одном видео.
+- Поддержка разных типов кликов в CS2:
+  - `frag (max + 50)`
+  - `headshot (max + 100)`
+- Подсчет очков по точности попадания (раньше/позже события).
+- Логика пропусков: если событие не нажато вовремя - `пропуск (очки: 0)`.
+- Отмена выбора повторным кликом по той же кнопке (до наступления события).
+- Лидерборд по сумме очков, выделение текущего игрока.
+- Опциональная калибровка задержки пользователя.
+- Повтор раунда без рейтинга: `Повторить (без рейтинга)`.
+- Базовая устойчивость к сбоям сети/Supabase в API.
 
-- **Frontend**: Next.js 16 (App Router), TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Database**: Supabase (PostgreSQL)
-- **Deployment**: Vercel-ready
+## Важно про MVP scope
 
-## Getting Started
+В MVP **осознанно не добавлялись**:
 
-### Prerequisites
+- live sports APIs
+- CV/OCR и авто-распознавание событий
+- массовые multiplayer-комнаты
+- сложный anti-cheat
+- low-level HLS sync
+- Kafka/BullMQ/микросервисы
+- Bun только ради performance
+- Supabase Edge Functions, если можно проще
 
-- Node.js 18+ or compatible runtime
-- pnpm (or npm/yarn)
-- Supabase account
+## Стек
 
-### Installation
+- Next.js (App Router) + TypeScript
+- Tailwind CSS
+- Next.js API routes
+- Supabase (PostgreSQL)
 
-1. Clone the repository
-2. Install dependencies:
+## Структура проекта
+
+```
+app/
+  api/
+    submissions/
+    leaderboard/
+    check-submission/
+    player-progress/
+  game/
+  layout.tsx
+  page.tsx
+lib/
+  scoring.ts
+  supabase.ts
+public/
+  demo.mp4
+  demo2.mp4
+supabase-schema.sql
+```
+
+## Запуск локально
+
+### 1) Требования
+
+- Node.js 18+
+- npm или pnpm
+- Supabase проект
+
+### 2) Установка зависимостей
+
+```bash
+npm install
+```
+
+или
 
 ```bash
 pnpm install
 ```
 
-3. Set up Supabase:
-   - Follow instructions in `SUPABASE_SETUP.md`
-   - Create `.env.local` with your Supabase credentials
+### 3) Переменные окружения
 
-4. Add demo video:
-   - Place `demo.mp4` in `/public` directory
-   - The demo event is set at 14500ms (14.5 seconds)
-
-5. Run development server:
+Создайте `.env.local` (можно скопировать из `.env.example`):
 
 ```bash
-pnpm dev
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000)
+### 4) Инициализация БД
 
-## Game Rules
+Примените SQL из файла:
 
-Players guess when an event occurs in the video. Scoring:
+`supabase-schema.sql`
 
-- ≤ 300ms difference: **100 points**
-- ≤ 1000ms difference: **70 points**
-- ≤ 2000ms difference: **40 points**
-- ≤ 5000ms difference: **10 points**
-- \> 5000ms difference: **0 points**
+в SQL Editor вашего Supabase проекта.
 
-Each player can submit once per event.
+### 5) Видео
 
-## Project Structure
+Проверьте, что в `public/` есть:
 
-```
-/app
-  /api
-    /submissions      # POST endpoint for submissions
-    /leaderboard      # GET endpoint for leaderboard
-    /check-submission # GET endpoint to check existing submission
-  /game               # Game page
-  layout.tsx          # Root layout
-  page.tsx            # Home page
-/lib
-  supabase.ts         # Supabase client
-/public
-  demo.mp4            # Demo video (add manually)
-supabase-schema.sql   # Database schema
+- `demo.mp4`
+- `demo2.mp4`
+
+### 6) Запуск dev-сервера
+
+```bash
+npm run dev
 ```
 
-## Environment Variables
+Откройте: `http://localhost:3000/game`
 
-See `.env.example` for required variables:
+## Как работать с проектом
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+### Добавить/изменить тайминги событий
+
+Нужно синхронно изменить 3 места:
+
+1. `app/game/page.tsx` - клиентские таймкоды
+2. `app/api/submissions/route.ts` - серверные таймкоды
+3. `supabase-schema.sql` - seed значения
+
+### Настроить скоринг
+
+Файл: `lib/scoring.ts`
+
+- `SCORE_PROFILES` - очки по окнам отклонения
+- `EVENT_GRACE_MS_BY_GAME` - окно допуска после события
+
+### Что проверять после изменений
+
+```bash
+npm run lint
+npx tsc --noEmit
+```
+
+И руками в браузере:
+
+- переключение режимов
+- прохождение всех событий
+- корректность пропусков
+- отображение суммы очков
+- поведение `Повторить (без рейтинга)`
 
 ## Deployment
 
-Deploy to Vercel:
+Проект готов к деплою на Vercel:
 
-1. Push to GitHub
-2. Import project in Vercel
-3. Add environment variables
-4. Deploy
+1. Подключить репозиторий
+2. Добавить env-переменные
+3. Задеплоить
 
-## MVP Scope
+## Ссылки
 
-This is an MVP focused on core functionality:
-- Simple, single-game setup
-- No authentication system
-- No admin panel
-- Hardcoded demo game/event IDs
-
-## License
-
-MIT
+- Прототип: `https://healthfull-omega.vercel.app`
+- GitHub: `<добавьте ссылку на репозиторий>`
