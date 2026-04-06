@@ -832,10 +832,6 @@ export default function GamePage() {
     const baseScore = calculateScoreForGame(mode, signedDiff);
     const calculatedScore = applyGuessKindScore(baseScore, guessKind);
 
-    setGuessedTimeMs(effectiveNowMs);
-    setEventTimeMs(targetEvent.eventTimeMs);
-    setSignedDeltaMs(signedDiff);
-    setScore(calculatedScore);
     setLastGuessKind(guessKind);
 
     const guessPayload: PendingGuess = {
@@ -855,6 +851,11 @@ export default function GamePage() {
       setSubmitError(null);
       return;
     }
+
+    setGuessedTimeMs(effectiveNowMs);
+    setEventTimeMs(targetEvent.eventTimeMs);
+    setSignedDeltaMs(signedDiff);
+    setScore(calculatedScore);
 
     await submitGuess(guessPayload);
   };
@@ -1039,7 +1040,7 @@ export default function GamePage() {
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 p-8">
       <div className="w-full max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-start justify-between mb-8">
           <h1 className="text-3xl font-bold text-zinc-900">Игра на точность тайминга - {playerName}</h1>
           <button
             onClick={handleChangeName}
@@ -1162,7 +1163,7 @@ export default function GamePage() {
                   <button
                     onClick={() => void handleGuess("goal")}
                     disabled={isGoalButtonDisabled}
-                    className="w-full sm:w-auto sm:px-8 px-6 py-3 bg-green-600 text-white text-lg font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer disabled:bg-zinc-400 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-3 bg-green-600 text-white text-base font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer disabled:bg-zinc-400 disabled:cursor-not-allowed"
                   >
                     {currentEvent === null || hasReachedLastEvent ? "Все события пройдены" : canCancelGoal ? "Отменить goal" : "goal (max + 100)"}
                   </button>
@@ -1196,36 +1197,47 @@ export default function GamePage() {
                 </div>
             </div>
 
-            <div
-              className="relative overflow-hidden rounded-lg border px-4 py-3"
-              style={{
-                borderColor: score === null ? "#d4d4d8" : score >= 35 ? "#86efac" : score >= 12 ? "#fcd34d" : "#fca5a5",
-                backgroundColor: score === null ? "#fafafa" : score >= 35 ? "#f0fdf4" : score >= 12 ? "#fffbeb" : "#fef2f2",
-              }}
-            >
-              {maxHitFxLabel && (
-                <div key={maxHitFxToken} className="pointer-events-none absolute inset-x-0 top-10 bottom-0 z-10 overflow-hidden">
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold text-white shadow max-hit-badge">
-                    {maxHitFxLabel}
-                  </div>
+            {isRestoringProgress ? (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-wide text-zinc-400">Очки за предыдущий клик</p>
+                  <div className="h-4 w-20 bg-zinc-200 rounded" />
                 </div>
-              )}
-              <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-wide text-zinc-600">Очки за предыдущий клик</p>
-                <p className="text-xs font-medium text-zinc-500">
-                  Максимум: {mode === "cs2" ? "50-100" : getMaxScoreForGuessKind(lastGuessKind)}
+                <div className="h-10 w-14 bg-zinc-200 rounded mt-1" />
+                <div className="h-5 w-48 bg-zinc-200 rounded mt-2" />
+              </div>
+            ) : (
+              <div
+                className="relative overflow-hidden rounded-lg border px-4 py-3"
+                style={{
+                  borderColor: score === null ? "#d4d4d8" : score >= 35 ? "#86efac" : score >= 12 ? "#fcd34d" : "#fca5a5",
+                  backgroundColor: score === null ? "#fafafa" : score >= 35 ? "#f0fdf4" : score >= 12 ? "#fffbeb" : "#fef2f2",
+                }}
+              >
+                {maxHitFxLabel && (
+                  <div key={maxHitFxToken} className="pointer-events-none absolute inset-x-0 top-10 bottom-0 z-10 overflow-hidden">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold text-white shadow max-hit-badge">
+                      {maxHitFxLabel}
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-wide text-zinc-600">Очки за предыдущий клик</p>
+                  <p className="text-xs font-medium text-zinc-500">
+                    Максимум: {mode === "cs2" ? "50-100" : getMaxScoreForGuessKind(lastGuessKind)}
+                  </p>
+                </div>
+                <p
+                  className="text-4xl font-extrabold"
+                  style={{ color: score === null ? "#71717a" : score >= 35 ? "#15803d" : score >= 12 ? "#b45309" : "#dc2626" }}
+                >
+                  {score ?? "-"}
+                </p>
+                <p className={`mt-2 text-sm ${eventFeedback ? (eventFeedbackType === "miss" ? "text-red-600" : "text-zinc-700") : "text-zinc-400"}`}>
+                  {eventFeedback ?? "События пока не засчитаны"}
                 </p>
               </div>
-              <p
-                className="text-4xl font-extrabold"
-                style={{ color: score === null ? "#71717a" : score >= 35 ? "#15803d" : score >= 12 ? "#b45309" : "#dc2626" }}
-              >
-                {score ?? "-"}
-              </p>
-              {eventFeedback && (
-                <p className={`mt-2 text-sm ${eventFeedbackType === "miss" ? "text-red-600" : "text-zinc-700"}`}>{eventFeedback}</p>
-              )}
-            </div>
+            )}
 
             <div className="bg-white rounded-lg shadow-lg p-4">
               <p className="text-sm text-zinc-600">
@@ -1235,6 +1247,29 @@ export default function GamePage() {
 
             <div className="bg-white rounded-lg shadow-lg p-6 min-h-[360px]">
               <h2 className="text-xl font-bold text-zinc-900 mb-4">Ваш результат</h2>
+              {isRestoringProgress ? (
+                <div className="space-y-3 animate-pulse">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <p className="text-xs uppercase tracking-wide text-zinc-400">Суммарные очки</p>
+                    <div className="h-9 w-16 bg-zinc-200 rounded mt-1" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-400">Ваше время</p>
+                    <div className="h-7 w-24 bg-zinc-200 rounded mt-1" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-400">Событие и отклонение</p>
+                    <div className="h-7 w-40 bg-zinc-200 rounded mt-1" />
+                  </div>
+                  <div className="min-h-[104px]">
+                    <p className="text-sm text-zinc-400 mb-2">Отклонения по событиям</p>
+                    <div className="space-y-2">
+                      <div className="h-5 w-full bg-zinc-200 rounded" />
+                      <div className="h-5 w-3/4 bg-zinc-200 rounded" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
                 <div className="space-y-3">
                   <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
                     <p className="text-xs uppercase tracking-wide text-amber-700">Суммарные очки</p>
@@ -1288,6 +1323,7 @@ export default function GamePage() {
                 </div>
                 <div className="pt-2 border-t border-zinc-200 min-h-[8px]" />
               </div>
+              )}
             </div>
 
             {submitError && (
@@ -1303,7 +1339,17 @@ export default function GamePage() {
               <p className="text-sm text-zinc-500 mb-4">{selectedGame.title}</p>
 
               {isLoadingLeaderboard ? (
-                <div className="text-center py-8 text-zinc-500">Загрузка...</div>
+                <div className="space-y-3 animate-pulse py-2">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-zinc-50">
+                      <div className="flex items-center gap-3">
+                        <div className="h-5 w-5 bg-zinc-200 rounded" />
+                        <div className="h-5 w-24 bg-zinc-200 rounded" />
+                      </div>
+                      <div className="h-5 w-12 bg-zinc-200 rounded" />
+                    </div>
+                  ))}
+                </div>
               ) : leaderboard.length === 0 ? (
                 <div className="text-center py-8 text-zinc-500">Пока нет результатов. Будьте первым!</div>
               ) : (
